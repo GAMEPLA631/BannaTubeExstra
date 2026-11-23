@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="sk" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BannaTube Exstra</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<style>
+:root{--bg:#0f0f0f;--el:#181818;--card:#222;--hov:#2c2c2c;--txt:#f1f1f1;--mut:#aaa;--brd:rgba(255,255,255,.12);--acc:#ffcc00;--red:#ff0033;--blue:#3ea6ff;--ok:#2ba640;--warn:#f59e0b;--err:#ef4444}
+html[data-theme="light"]{--bg:#fff;--el:#f6f7f9;--card:#f0f0f0;--hov:#e4e4e4;--txt:#111;--mut:#555;--brd:rgba(0,0,0,.12)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh}
+button,input,select,textarea{font:inherit;color:inherit}
+.hidden{display:none!important}
+.hdr{position:fixed;inset:0 0 auto 0;height:58px;background:var(--bg);border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;padding:0 14px;gap:10px;z-index:100}
+.row{display:flex;align-items:center;gap:8px}
+.ibtn{width:38px;height:38px;border-radius:50%;border:0;background:transparent;cursor:pointer;display:grid;place-items:center}
+.ibtn:hover{background:var(--hov)}
+.brand{display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:800;font-size:1.1rem;text-decoration:none}
+.badge-play{width:32px;height:22px;border-radius:6px;background:linear-gradient(135deg,#ff0033,#ff7a00);display:grid;place-items:center;color:#fff;font-size:.75rem}
+.srch{flex:1;max-width:540px;display:flex;border:1px solid var(--brd);background:var(--el);border-radius:999px;overflow:hidden;height:38px}
+.srch input{flex:1;border:0;background:transparent;padding:0 14px;outline:0}
+.srch button{width:50px;border:0;border-left:1px solid var(--brd);background:var(--card);cursor:pointer}
+.btn{border:1px solid var(--brd);background:var(--card);padding:7px 14px;border-radius:999px;font-weight:600;font-size:.85rem;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{background:var(--hov)}
+.btn-acc{background:var(--acc);color:#111;border:0;font-weight:800}
+.btn-pri{background:var(--txt);color:var(--bg);border:0;font-weight:700}
+.dot{width:9px;height:9px;border-radius:50%;background:#888}
+.dot.Connected{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.dot.Connecting{background:var(--warn)}
+.dot.Disconnected{background:#888}
+.dot.Error{background:var(--err);box-shadow:0 0 8px var(--err)}
+.wrap{display:flex;padding-top:58px}
+.side{width:220px;position:fixed;top:58px;left:0;bottom:0;background:var(--bg);border-right:1px solid var(--brd);padding:10px;overflow-y:auto;z-index:90}
+.side.mini{width:68px}.side.mini .lbl,.side.mini .sinfo{display:none}
+.nav{width:100%;display:flex;align-items:center;gap:12px;padding:10px 12px;border:0;background:transparent;border-radius:10px;cursor:pointer;text-align:left;font-size:.9rem;margin-bottom:3px}
+.nav:hover{background:var(--hov)}.nav.act{background:var(--card);font-weight:700}
+.sinfo{margin-top:14px;padding:10px;border-top:1px solid var(--brd);font-size:.74rem;color:var(--mut);word-break:break-all}
+.main{flex:1;margin-left:220px;padding:18px 22px 44px;min-width:0}
+.main.wide{margin-left:68px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:12px;margin-bottom:12px}
+.chip{border:0;background:var(--card);padding:7px 13px;border-radius:8px;font-size:.84rem;font-weight:600;cursor:pointer;white-space:nowrap}
+.chip.act{background:var(--txt);color:var(--bg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px 16px}
+.card{cursor:pointer;display:flex;flex-direction:column;gap:9px}
+.thumb{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#141414;border:1px solid var(--brd)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.tph{width:100%;height:100%;display:grid;place-items:center;color:#888;font-weight:700}
+.bdg{position:absolute;font-size:.72rem;font-weight:700;padding:2px 7px;border-radius:5px}
+.bdg-dur{bottom:7px;right:7px;background:rgba(0,0,0,.82);color:#fff}
+.bdg-cr{top:7px;left:7px;background:var(--acc);color:#111}
+.bdg-src{top:7px;right:7px;background:rgba(0,0,0,.78);color:#ddd}
+.av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#3ea6ff,#8b5cf6);color:#fff;font-weight:800;display:grid;place-items:center;flex-shrink:0}
+.ctitle{font-weight:700;font-size:.96rem;line-height:1.3;margin-bottom:3px}
+.csub{font-size:.8rem;color:var(--mut)}
+.empty{border:1px dashed var(--brd);border-radius:16px;padding:44px 20px;text-align:center;background:var(--el);max-width:640px;margin:24px auto}
+.wlayout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:22px;align-items:start}
+.wlayout.theatre{grid-template-columns:1fr}
+.pshell{position:relative;aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden}
+.pshell video{width:100%;height:100%;object-fit:contain;display:block}
+.pmsg{position:absolute;inset:0;background:rgba(10,10,10,.9);display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;gap:8px;z-index:5}
+.pmsg.show{display:flex}
+.pctrl{position:absolute;inset:auto 0 0 0;padding:24px 12px 8px;background:linear-gradient(transparent,rgba(0,0,0,.88));display:flex;flex-direction:column;gap:6px;z-index:4;color:#fff}
+.pbar{height:12px;display:flex;align-items:center;cursor:pointer}
+.ptrack{position:relative;width:100%;height:4px;background:rgba(255,255,255,.3);border-radius:999px}
+.pbuf,.pfil{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:999px}
+.pbuf{background:rgba(255,255,255,.45)}.pfil{background:var(--red)}
+.pbtn{background:transparent;border:0;color:#fff;cursor:pointer;padding:4px 7px;border-radius:6px;font-weight:700}
+.pbtn:hover{background:rgba(255,255,255,.15)}
+.box{background:var(--el);border:1px solid var(--brd);border-radius:12px;padding:14px;margin:12px 0}
+.idc-box{margin-top:12px;border:1px solid rgba(255,204,0,.4);background:rgba(255,204,0,.06);border-radius:10px;overflow:hidden}
+.idc-head{padding:9px 12px;background:rgba(255,204,0,.15);color:var(--acc);font-weight:800;font-size:.86rem;display:flex;justify-content:space-between}
+.idc-tbl{width:100%;border-collapse:collapse;font-size:.84rem}
+.idc-tbl th,.idc-tbl td{padding:8px 12px;border-top:1px solid var(--brd);text-align:left;vertical-align:top}
+.idc-tbl th{width:35%;color:var(--mut)}
+.upitem{display:flex;gap:10px;cursor:pointer;margin-bottom:10px;padding:4px;border-radius:8px}
+.upitem:hover{background:var(--hov)}
+.upthumb{width:142px;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:#111;flex-shrink:0;position:relative}
+.upthumb img{width:100%;height:100%;object-fit:cover}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mlog{height:300px;overflow-y:auto;background:var(--bg);border:1px solid var(--brd);border-radius:10px;padding:10px;font-family:monospace;font-size:.78rem;display:flex;flex-direction:column;gap:7px}
+.mmsg{padding:7px 9px;background:var(--el);border-left:3px solid var(--blue);border-radius:6px;word-break:break-word}
+.subchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.subchip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;background:var(--card);border:1px solid var(--brd);font-size:.76rem;font-family:monospace}
+.subchip button{border:0;background:transparent;color:var(--err);cursor:pointer;font-weight:800}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;padding:16px;z-index:200}
+.modal-bg.open{display:flex}
+.modal{width:100%;max-width:680px;max-height:92vh;overflow-y:auto;background:var(--el);border:1px solid var(--brd);border-radius:16px;padding:20px}
+.fg{margin-bottom:12px}.fg label{display:block;font-size:.83rem;font-weight:700;margin-bottom:5px}
+.fc{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--brd);background:var(--bg);outline:0}
+.drop{border:2px dashed var(--brd);border-radius:12px;padding:18px;text-align:center;cursor:pointer;background:var(--bg)}
+.drop:hover{border-color:var(--acc)}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;color:#fff;border:1px solid rgba(255,255,255,.2);padding:9px 16px;border-radius:999px;font-size:.85rem;opacity:0;pointer-events:none;transition:.2s;z-index:300}
+.toast.show{opacity:1}
+@media(max-width:960px){.wlayout,.mgrid{grid-template-columns:1fr}}
+@media(max-width:740px){.side{transform:translateX(-100%)}.side.mob{transform:translateX(0)}.main{margin-left:0!important}}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <div class="row">
+    <button class="ibtn" id="menuBtn">☰</button>
+    <a class="brand" id="logoBtn" href="#home"><span class="badge-play">▶</span>BannaTube <span style="color:var(--acc)">Exstra</span></a>
+  </div>
+  <div class="srch">
+    <input id="searchInput" placeholder="Hľadať videá, kanály, ID Connect..." />
+    <button id="searchBtn">🔍</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="hdrMqttBtn"><span class="dot Connecting" id="hdrDot"></span><span id="hdrStatus">Connecting</span></button>
+    <button class="btn btn-acc" id="openUploadBtn">+ Nahrať video</button>
+    <button class="ibtn" id="themeBtn">🌓</button>
+    <button class="ibtn" id="profBtn" style="background:var(--acc);color:#111;font-weight:800">B</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <aside class="side" id="sidebar">
+    <button class="nav act" data-v="home">🏠 <span class="lbl">Domov</span></button>
+    <button class="nav" data-v="trending">🔥 <span class="lbl">Populárne</span></button>
+    <button class="nav" data-v="subs">📺 <span class="lbl">Odbery</span></button>
+    <button class="nav" data-v="my">🎬 <span class="lbl">Moje videá</span></button>
+    <button class="nav" data-v="later">🕒 <span class="lbl">Pozrieť neskôr</span></button>
+    <button class="nav" data-v="history">📜 <span class="lbl">História</span></button>
+    <button class="nav" data-v="mqtt">📡 <span class="lbl">MQTT Broker</span></button>
+    <div class="sinfo">WSS: <code>broker.connectmq.com:8084</code><br/>ID: <span id="sideCid"></span></div>
+  </aside>
+
+  <main class="main" id="mainEl">
+    <section id="feedView">
+      <div class="chips" id="catChips">
+        <button class="chip act" data-c="Všetko">Všetko</button>
+        <button class="chip" data-c="Hudba">Hudba</button>
+        <button class="chip" data-c="Gaming">Gaming</button>
+        <button class="chip" data-c="Tech">Tech</button>
+        <button class="chip" data-c="Vlogy">Vlogy</button>
+        <button class="chip" data-c="Vzdelávanie">Vzdelávanie</button>
+        <button class="chip" data-c="Zábava">Zábava</button>
+        <button class="chip" data-c="Copyright">© ID Connect</button>
+      </div>
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <h2 id="feedTitle" style="font-size:1.1rem">Odporúčané videá</h2>
+        <span id="feedCount" style="font-size:.82rem;color:var(--mut)">0 videí</span>
+      </div>
+      <div class="grid" id="videoGrid"></div>
+      <div class="empty hidden" id="emptyBox">
+        <h2 style="margin-bottom:8px">Zatiaľ tu nie sú žiadne videá</h2>
+        <p style="color:var(--mut);margin-bottom:16px;font-size:.92rem">V HTML nie sú vložené žiadne videá. Nahraj prvé video priamo na platforme – automaticky sa zosynchronizuje cez verejný MQTT broker.</p>
+        <button class="btn btn-acc" id="emptyUploadBtn">+ Nahrať prvé video</button>
+      </div>
+    </section>
+
+    <section id="watchView" class="hidden">
+      <button class="btn" id="backBtn" style="margin-bottom:10px">← Späť</button>
+      <div class="wlayout" id="wLayout">
+        <div>
+          <div class="pshell" id="pShell">
+            <video id="vEl" playsinline preload="metadata"></video>
+            <div class="pmsg" id="pMsg"><strong>Lokálne video autora</strong><p id="pMsgTxt" style="color:#ccc;font-size:.86rem;max-width:440px"></p></div>
+            <div class="pctrl">
+              <div class="pbar" id="pBar"><div class="ptrack"><div class="pbuf" id="pBuf"></div><div class="pfil" id="pFil"></div></div></div>
+              <div class="row" style="justify-content:space-between">
+                <div class="row">
+                  <button class="pbtn" id="playBtn">▶</button>
+                  <button class="pbtn" id="muteBtn">🔊</button>
+                  <input type="range" id="volSld" min="0" max="1" step="0.05" value="1" style="width:68px" />
+                  <span id="timeTxt" style="font-size:.8rem">0:00 / 0:00</span>
+                </div>
+                <div class="row">
+                  <select id="spdSel" style="background:#222;color:#fff;border:1px solid #444;border-radius:5px;padding:2px 5px;font-size:.78rem">
+                    <option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="1.5">1.5x</option><option value="2">2x</option>
+                  </select>
+                  <button class="pbtn" id="pipBtn">⧉</button>
+                  <button class="pbtn" id="thtBtn">▭</button>
+                  <button class="pbtn" id="fsBtn">⛶</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <h1 id="wTitle" style="font-size:1.25rem;margin:12px 0 10px"></h1>
+          <div class="row" style="justify-content:space-between;flex-wrap:wrap">
+            <div class="row">
+              <div class="av" id="wAv">B</div>
+              <div><strong id="wChan"></strong><div id="wSubInfo" style="font-size:.78rem;color:var(--mut)"></div></div>
+              <button class="btn btn-pri" id="subBtn">Odoberať</button>
+            </div>
+            <div class="row" style="flex-wrap:wrap">
+              <button class="btn" id="likeBtn">👍 <span id="likeCnt">0</span></button>
+              <button class="btn" id="disBtn">👎 <span id="disCnt">0</span></button>
+              <button class="btn" id="laterBtn">🕒 Uložiť</button>
+              <button class="btn" id="shareBtn">🔗 Zdieľať</button>
+              <button class="btn hidden" id="delBtn" style="color:var(--err)">🗑 Zmazať</button>
+            </div>
+          </div>
+
+          <div class="box">
+            <div id="wStats" style="font-weight:700;font-size:.85rem;margin-bottom:6px"></div>
+            <div id="wDesc" style="font-size:.9rem;white-space:pre-wrap"></div>
+            <div class="idc-box hidden" id="wIdcBox">
+              <div class="idc-head"><span>© ID Connect — Tabuľka popisu videa &amp; Copyright</span><span id="wIdcCode"></span></div>
+              <table class="idc-tbl"><tbody id="wIdcBody"></tbody></table>
+            </div>
+          </div>
+
+          <h3 id="cmtHead" style="margin:14px 0 8px">Komentáre (0)</h3>
+          <form id="cmtForm" class="row" style="margin-bottom:14px">
+            <input id="cmtInp" class="fc" placeholder="Napíš verejný komentár cez MQTT..." required />
+            <button class="btn btn-pri" type="submit">Odoslať</button>
+          </form>
+          <div id="cmtList"></div>
+        </div>
+        <aside><h3 style="margin-bottom:10px;font-size:.98rem">Ďalšie videá</h3><div id="upNext"></div></aside>
+      </div>
+    </section>
+
+    <section id="mqttView" class="hidden">
+      <h2 style="margin-bottom:10px">📡 Verejný MQTT Broker (WSS)</h2>
+      <div class="box" style="font-size:.84rem;line-height:1.5">
+        <strong>Endpoint:</strong> <code>wss://broker.connectmq.com:8084/mqtt</code> (anonymne bez mena/hesla/API)<br/>
+        <strong>Stav:</strong> <strong id="mPanelStatus">Connecting</strong> | <strong>Client ID:</strong> <code id="mPanelCid"></code><br/>
+        <strong>Limity verejného brokera:</strong> max 64 KB/správa, max 10 správ/s, max 10 odberov (2 používa BannaTube).
+      </div>
+      <div class="mgrid">
+        <div class="box">
+          <h3 style="margin-bottom:8px;font-size:.96rem">Subscribe / Unsubscribe</h3>
+          <form id="subForm" class="row"><input id="subTopic" class="fc" placeholder="napr. bannatube/chat/#" required /><button class="btn btn-pri" type="submit">Subscribe</button></form>
+          <div id="subLimit" style="font-size:.78rem;color:var(--mut);margin-top:6px"></div>
+          <div class="subchips" id="subList"></div>
+          <hr style="border:0;border-top:1px solid var(--brd);margin:14px 0"/>
+          <h3 style="margin-bottom:8px;font-size:.96rem">Publish správu</h3>
+          <form id="pubForm">
+            <div class="fg"><label>Topic</label><input id="pubTopic" class="fc" value="bannatube/exstra/chat" required /></div>
+            <div class="fg"><label>Správa</label><textarea id="pubMsg" class="fc" rows="2" required></textarea></div>
+            <label class="row" style="font-size:.83rem;margin-bottom:10px"><input type="checkbox" id="pubRet" /> Retain</label>
+            <button class="btn btn-acc" type="submit" style="width:100%;justify-content:center">Publish</button>
+          </form>
+        </div>
+        <div class="box">
+          <div class="row" style="justify-content:space-between;margin-bottom:8px">
+            <h3 style="font-size:.96rem">Prijaté správy</h3>
+            <button class="btn" id="clrLogBtn" style="padding:4px 10px;font-size:.76rem">Vyčistiť</button>
+          </div>
+          <div class="mlog" id="mLog"><div style="color:var(--mut)">Čakám na správy...</div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="modal-bg" id="upModal">
+  <div class="modal">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <h3>Nahrať video na BannaTube Exstra</h3>
+      <button class="ibtn" id="clsUpBtn">✕</button>
+    </div>
+    <form id="upForm">
+      <div class="fg">
+        <div class="drop" id="dropZone"><input type="file" id="vFile" accept="video/*" class="hidden" /><div id="dropTxt"><strong>Klikni alebo potiahni video (.mp4, .webm)</strong><br/><span style="font-size:.78rem;color:var(--mut)">Lokálne súbory idú do IndexedDB, metadáta na verejný MQTT cloud.</span></div></div>
+      </div>
+      <div class="fg"><label>Alebo verejná URL videa (pre prehratie všetkým návštevníkom)</label><input type="url" id="vUrl" class="fc" placeholder="https://.../video.mp4" /></div>
+      <div class="fg"><label>Názov videa *</label><input id="vTitle" class="fc" required /></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg"><label>Kanál *</label><input id="vChan" class="fc" required /></div>
+        <div class="fg"><label>Kategória</label><select id="vCat" class="fc"><option>Zábava</option><option>Hudba</option><option>Gaming</option><option>Tech</option><option>Vlogy</option><option>Vzdelávanie</option></select></div>
+      </div>
+      <div class="fg"><label>Popis videa</label><textarea id="vDesc" class="fc" rows="2"></textarea></div>
+      <label class="row" style="padding:10px;border:1px solid var(--brd);border-radius:10px;margin-bottom:10px;cursor:pointer">
+        <input type="checkbox" id="crCheck" />
+        <span style="font-size:.86rem"><strong>Obsahuje video Copyright?</strong> (Zobraziť tabuľku popisu <strong>ID Connect</strong>)</span>
+      </label>
+      <div class="idc-box hidden" id="upIdcBox" style="margin-bottom:12px">
+        <div class="idc-head"><span>© Tabuľka popisu videa — ID Connect</span><span>Copyright</span></div>
+        <table class="idc-tbl"><tbody>
+          <tr><th>ID Connect Kód</th><td><input id="idcCode" class="fc" /></td></tr>
+          <tr><th>Vlastník práv</th><td><input id="idcOwner" class="fc" /></td></tr>
+          <tr><th>Licencia</th><td><select id="idcLic" class="fc"><option>Standard Copyright</option><option>ID Connect Content Claim</option><option>Creative Commons</option></select></td></tr>
+          <tr><th>Región</th><td><input id="idcReg" class="fc" value="Celosvetovo (Worldwide)" /></td></tr>
+          <tr><th>ID Connect popis</th><td><textarea id="idcDesc" class="fc" rows="2" placeholder="Popis chráneného obsahu..."></textarea></td></tr>
+        </tbody></table>
+      </div>
+      <div class="row" style="justify-content:flex-end">
+        <button type="button" class="btn" id="canUpBtn">Zrušiť</button>
+        <button type="submit" class="btn btn-acc" id="pubVidBtn">Zverejniť video</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-bg" id="profModal">
+  <div class="modal" style="max-width:380px">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px"><h3>Môj kanál</h3><button class="ibtn" id="clsProfBtn">✕</button></div>
+    <form id="profForm" class="fg">
+      <label>Verejné meno kanála</label><input id="profInp" class="fc" required style="margin-bottom:12px" />
+      <button type="submit" class="btn btn-pri" style="width:100%;justify-content:center">Uložiť</button>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const BROKER = 'wss://broker.connectmq.com:8084/mqtt';
+  const T_VID = 'bannatube/exstra/videos';
+  const T_EVT = 'bannatube/exstra/events';
+  const SYS_SUBS = [`${T_VID}/+`, `${T_EVT}/+`];
+  const cid = 'bannatube-' + Math.random().toString(16).slice(2, 10);
+
+  let client = null, status = 'Disconnected', view = 'home', cat = 'Všetko', q = '', activeId = null, pickedFile = null;
+  const customSubs = new Set(), mLogs = [], videos = new Map(), cmts = new Map(), blobs = new Map();
+
+  const u = JSON.parse(localStorage.getItem('bte_user') || '{}');
+  u.name ??= 'Tvorca ' + cid.slice(-4).toUpperCase();
+  u.likes ??= {}; u.subs ??= []; u.later ??= []; u.hist ??= []; u.theme ??= 'dark';
+  document.documentElement.setAttribute('data-theme', u.theme);
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const toast = m => { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2800); };
+  const fmt = s => !isFinite(s) ? '0:00' : `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+  const ago = ts => { const d = Math.max(1, Math.floor((Date.now()-ts)/1000)); return d<60?'pred chvíľou':d<3600?`pred ${Math.floor(d/60)} min`:`pred ${Math.floor(d/3600)} h`; };
+  const saveU = () => localStorage.setItem('bte_user', JSON.stringify(u));
+  const saveVids = () => { try { localStorage.setItem('bte_vids', JSON.stringify([...videos.values()])); } catch {} };
+
+  const openDB = () => new Promise((res, rej) => {
+    const r = indexedDB.open('BannaTubeExstraDB', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('files');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  const putBlob = async (id, b) => { const db = await openDB(); return new Promise(r => { const tx = db.transaction('files','readwrite'); tx.objectStore('files').put(b, id); tx.oncomplete = r; }); };
+  const getBlob = async id => { const db = await openDB(); return new Promise(r => { const q = db.transaction('files','readonly').objectStore('files').get(id); q.onsuccess = () => r(q.result||null); q.onerror = () => r(null); }); };
+  const delBlob = async id => { const db = await openDB(); const tx = db.transaction('files','readwrite'); tx.objectStore('files').delete(id); };
+
+  function setStatus(s, d='') {
+    status = s; $('hdrDot').className = 'dot ' + s;
+    $('hdrStatus').textContent = s; $('mPanelStatus').textContent = d ? `${s} (${d})` : s;
+  }
+
+  function renderSubs() {
+    const cnt = SYS_SUBS.length + customSubs.size;
+    $('subLimit').textContent = `Aktívne odbery: ${cnt} / 10 (2 systémové + vlastné)`;
+    $('subList').innerHTML = [...customSubs].map(t => `<span class="subchip">${esc(t)}<button data-u="${esc(t)}">✕</button></span>`).join('');
+    $('subList').querySelectorAll('button').forEach(b => b.onclick = () => {
+      const t = b.dataset.u; client?.unsubscribe(t); customSubs.delete(t); renderSubs();
+    });
+  }
+
+  function renderLog() {
+    $('mLog').innerHTML = mLogs.length ? mLogs.map(m =>
+      `<div class="mmsg"><div style="color:var(--mut);font-size:.72rem"><b>${esc(m.t)}</b> ${m.r?'• retained':''} (${m.ts})</div><div>${esc(m.p.slice(0,500))}</div></div>`
+    ).join('') : '<div style="color:var(--mut)">Čakám na správy...</div>';
+  }
+
+  function initMqtt() {
+    $('sideCid').textContent = cid; $('mPanelCid').textContent = cid; setStatus('Connecting');
+    client = mqtt.connect(BROKER, { clientId: cid, clean: true, reconnectPeriod: 3000, connectTimeout: 10000 });
+    client.on('connect', () => {
+      setStatus('Connected');
+      SYS_SUBS.forEach(t => client.subscribe(t, { qos: 1 }));
+      customSubs.forEach(t => client.subscribe(t, { qos: 0 }));
+      renderSubs();
+    });
+    client.on('reconnect', () => setStatus('Connecting', 'Reconnecting...'));
+    client.on('offline', () => setStatus('Disconnected'));
+    client.on('close', () => { if (status !== 'Error') setStatus('Disconnected'); });
+    client.on('error', e => setStatus('Error', e?.message || 'Error'));
+    client.on('message', (t, msg, pkt) => {
+      const txt = msg.toString();
+      mLogs.unshift({ t, p: txt, r: !!pkt?.retain, ts: new Date().toLocaleTimeString() });
+      if (mLogs.length > 80) mLogs.pop();
+      renderLog();
+
+      if (t.startsWith(T_VID + '/')) {
+        if (!txt) { videos.delete(t.split('/').pop()); saveVids(); if (view!=='watch'&&view!=='mqtt') renderFeed(); return; }
+        try {
+          const v = JSON.parse(txt);
+          if (v?.id && v?.title) {
+            const ex = videos.get(v.id);
+            videos.set(v.id, { ...ex, ...v, views: Math.max(ex?.views||0, v.views||0), likes: Math.max(ex?.likes||0, v.likes||0), dislikes: Math.max(ex?.dislikes||0, v.dislikes||0) });
+            saveVids();
+            if (view!=='watch'&&view!=='mqtt') renderFeed();
+            if (view==='watch' && activeId===v.id) renderWatchMeta(videos.get(v.id));
+          }
+        } catch {}
+      } else if (t.startsWith(T_EVT + '/')) {
+        try {
+          const ev = JSON.parse(txt), v = videos.get(ev.videoId);
+          if (ev.type==='cmt' && ev.c) {
+            const arr = cmts.get(ev.videoId) || [];
+            if (!arr.some(x => x.id === ev.c.id)) { arr.unshift(ev.c); cmts.set(ev.videoId, arr); if (activeId===ev.videoId) renderCmts(ev.videoId); }
+          } else if (ev.type==='react' && v) {
+            if (typeof ev.likes==='number') v.likes = Math.max(v.likes||0, ev.likes);
+            if (typeof ev.dislikes==='number') v.dislikes = Math.max(v.dislikes||0, ev.dislikes);
+            if (typeof ev.views==='number') v.views = Math.max(v.views||0, ev.views);
+            saveVids(); if (activeId===v.id) renderWatchMeta(v);
+          }
+        } catch {}
+      }
+    });
+  }
+
+  function pub(t, p, opts={qos:0,retain:false}) {
+    if (!client?.connected) return false;
+    if (new Blob([p]).size > 58000) { toast('Správa prekročila limit 64 KB verejného brokera'); return false; }
+    client.publish(t, p, opts); return true;
+  }
+
+  function renderFeed() {
+    let list = [...videos.values()];
+    if (view==='trending') list.sort((a,b)=>((b.views||0)+(b.likes||0)*3)-((a.views||0)+(a.likes||0)*3));
+    else if (view==='subs') list = list.filter(v=>u.subs.includes(v.channel));
+    else if (view==='my') list = list.filter(v=>v.cid===cid || v.channel===u.name);
+    else if (view==='later') list = list.filter(v=>u.later.includes(v.id));
+    else if (view==='history') list = u.hist.map(id=>videos.get(id)).filter(Boolean);
+    else list.sort((a,b)=>b.ts-a.ts);
+
+    if (cat==='Copyright') list = list.filter(v=>v.hasCopyright);
+    else if (cat!=='Všetko') list = list.filter(v=>v.cat===cat);
+
+    if (q.trim()) {
+      const s = q.trim().toLowerCase();
+      list = list.filter(v => [v.title,v.channel,v.desc,v.idc?.code].some(x=>(x||'').toLowerCase().includes(s)));
+    }
+
+    $('feedCount').textContent = `${list.length} videí`;
+    $('emptyBox').classList.toggle('hidden', list.length > 0);
+    $('videoGrid').innerHTML = list.map(v => `
+      <div class="card" data-id="${esc(v.id)}">
+        <div class="thumb">
+          ${v.thumb ? `<img src="${esc(v.thumb)}" alt="" loading="lazy"/>` : `<div class="tph">▶ Video</div>`}
+          ${v.hasCopyright ? `<span class="bdg bdg-cr">© ID Connect</span>` : ''}
+          <span class="bdg bdg-src">${v.url?'URL Cloud':v.inline?'MQTT':'Lokálne DB'}</span>
+          <span class="bdg bdg-dur">${fmt(v.dur||0)}</span>
+        </div>
+        <div class="row" style="align-items:flex-start">
+          <div class="av">${esc((v.channel||'B')[0].toUpperCase())}</div>
+          <div><div class="ctitle">${esc(v.title)}</div><div class="csub">${esc(v.channel)} • ${v.views||0} zhliadnutí • ${ago(v.ts)}</div></div>
+        </div>
+      </div>`).join('');
+    $('videoGrid').querySelectorAll('.card').forEach(c => c.onclick = () => openWatch(c.dataset.id));
+  }
+
+  const vEl = $('vEl');
+  async function openWatch(id) {
+    const v = videos.get(id); if (!v) return;
+    activeId = id; switchView('watch');
+    u.hist = [id, ...u.hist.filter(x=>x!==id)].slice(0,40); saveU();
+    v.views = (v.views||0) + 1; saveVids();
+    pub(`${T_EVT}/${id}`, JSON.stringify({type:'react', videoId:id, views:v.views}));
+
+    $('pMsg').classList.remove('show'); vEl.pause(); vEl.removeAttribute('src');
+    if (v.url) vEl.src = v.url;
+    else if (v.inline) vEl.src = v.inline;
+    else {
+      let bu = blobs.get(id);
+      if (!bu) { const b = await getBlob(id); if (b) { bu = URL.createObjectURL(b); blobs.set(id, bu); } }
+      if (bu) vEl.src = bu;
+      else {
+        $('pMsgTxt').textContent = 'Súbor videa je lokálne v prehliadači autora. Pre prehranie na všetkých zariadeniach zadajte pri nahrávaní priamu URL videa.';
+        $('pMsg').classList.add('show');
+      }
+    }
+    renderWatchMeta(v); renderCmts(id);
+    $('upNext').innerHTML = [...videos.values()].filter(x=>x.id!==id).slice(0,10).map(x=>`
+      <div class="upitem" data-id="${esc(x.id)}">
+        <div class="upthumb">${x.thumb?`<img src="${esc(x.thumb)}"/>`:`<div class="tph">▶</div>`}<span class="bdg bdg-dur">${fmt(x.dur||0)}</span></div>
+        <div><div class="ctitle" style="font-size:.86rem">${esc(x.title)}</div><div class="csub">${esc(x.channel)}</div></div>
+      </div>`).join('');
+    $('upNext').querySelectorAll('.upitem').forEach(el => el.onclick = () => openWatch(el.dataset.id));
+    vEl.play().catch(()=>{});
+  }
+
+  function renderWatchMeta(v) {
+    $('wTitle').textContent = v.title; $('wAv').textContent = (v.channel||'B')[0].toUpperCase();
+    $('wChan').textContent = v.channel;
+    const isSub = u.subs.includes(v.channel);
+    $('subBtn').textContent = isSub ? 'Odoberané ✓' : 'Odoberať';
+    $('wSubInfo').textContent = isSub ? 'Odoberáte tento kanál' : 'Verejný kanál';
+    $('likeCnt').textContent = v.likes||0; $('disCnt').textContent = v.dislikes||0;
+    $('laterBtn').textContent = u.later.includes(v.id) ? '✓ Uložené' : '🕒 Uložiť';
+    $('delBtn').classList.toggle('hidden', !(v.cid===cid || v.channel===u.name));
+    $('wStats').textContent = `${v.views||0} zhliadnutí • ${new Date(v.ts).toLocaleString('sk-SK')} • ${v.cat}`;
+    $('wDesc').textContent = v.desc || 'Bez popisu.';
+    if (v.hasCopyright && v.idc) {
+      $('wIdcBox').classList.remove('hidden');
+      $('wIdcCode').textContent = v.idc.code || 'IDC';
+      $('wIdcBody').innerHTML = `
+        <tr><th>ID Connect Kód</th><td><b>${esc(v.idc.code)}</b></td></tr>
+        <tr><th>Vlastník práv</th><td>${esc(v.idc.owner)}</td></tr>
+        <tr><th>Licencia</th><td>${esc(v.idc.lic)}</td></tr>
+        <tr><th>Región</th><td>${esc(v.idc.reg)}</td></tr>
+        <tr><th>Popis chráneného obsahu</th><td>${esc(v.idc.desc||'-')}</td></tr>`;
+    } else $('wIdcBox').classList.add('hidden');
+  }
+
+  function renderCmts(id) {
+    const arr = cmts.get(id) || [];
+    $('cmtHead').textContent = `Komentáre (${arr.length})`;
+    $('cmtList').innerHTML = arr.map(c => `<div class="row" style="align-items:flex-start;margin-bottom:10px"><div class="av" style="width:30px;height:30px;font-size:.78rem">${esc(c.a[0].toUpperCase())}</div><div><b style="font-size:.82rem">${esc(c.a)}</b> <span style="font-size:.76rem;color:var(--mut)">${ago(c.ts)}</span><div style="font-size:.9rem">${esc(c.t)}</div></div></div>`).join('');
+  }
+
+  // Ovládanie prehrávača
+  const togglePlay = () => vEl.src && (vEl.paused ? vEl.play() : vEl.pause());
+  $('playBtn').onclick = togglePlay; vEl.onclick = togglePlay;
+  vEl.onplay = () => $('playBtn').textContent = '❚❚'; vEl.onpause = () => $('playBtn').textContent = '▶';
+  vEl.ontimeupdate = () => {
+    const d = vEl.duration||0, c = vEl.currentTime||0;
+    $('pFil').style.width = (d ? c/d*100 : 0) + '%'; $('timeTxt').textContent = `${fmt(c)} / ${fmt(d)}`;
+    if (vEl.buffered.length && d) $('pBuf').style.width = Math.min(100, vEl.buffered.end(vEl.buffered.length-1)/d*100) + '%';
+  };
+  $('pBar').onclick = e => { if (!vEl.duration) return; const r = $('pBar').getBoundingClientRect(); vEl.currentTime = Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*vEl.duration; };
+  $('muteBtn').onclick = () => { vEl.muted = !vEl.muted; $('muteBtn').textContent = vEl.muted ? '🔇' : '🔊'; };
+  $('volSld').oninput = () => { vEl.volume = +$('volSld').value; vEl.muted = vEl.volume===0; $('muteBtn').textContent = vEl.muted?'🔇':'🔊'; };
+  $('spdSel').onchange = () => vEl.playbackRate = +$('spdSel').value;
+  $('pipBtn').onclick = () => document.pictureInPictureElement ? document.exitPictureInPicture() : vEl.requestPictureInPicture?.();
+  $('thtBtn').onclick = () => $('wLayout').classList.toggle('theatre');
+  $('fsBtn').onclick = () => document.fullscreenElement ? document.exitFullscreen() : $('pShell').requestFullscreen?.();
+
+  // Reakcie & Komentáre
+  const react = type => {
+    const v = videos.get(activeId); if (!v) return;
+    const prev = u.likes[v.id];
+    if (prev === type) { v[type==='like'?'likes':'dislikes'] = Math.max(0,(v[type==='like'?'likes':'dislikes']||1)-1); delete u.likes[v.id]; }
+    else { if (prev) v[prev==='like'?'likes':'dislikes'] = Math.max(0,(v[prev==='like'?'likes':'dislikes']||1)-1); v[type==='like'?'likes':'dislikes']=(v[type==='like'?'likes':'dislikes']||0)+1; u.likes[v.id]=type; }
+    saveU(); saveVids(); renderWatchMeta(v);
+    pub(`${T_EVT}/${v.id}`, JSON.stringify({type:'react', videoId:v.id, likes:v.likes, dislikes:v.dislikes}));
+  };
+  $('likeBtn').onclick = () => react('like'); $('disBtn').onclick = () => react('dislike');
+  $('subBtn').onclick = () => { const v = videos.get(activeId); if (!v) return; u.subs = u.subs.includes(v.channel) ? u.subs.filter(c=>c!==v.channel) : [...u.subs, v.channel]; saveU(); renderWatchMeta(v); };
+  $('laterBtn').onclick = () => { if (!activeId) return; u.later = u.later.includes(activeId) ? u.later.filter(x=>x!==activeId) : [...u.later, activeId]; saveU(); renderWatchMeta(videos.get(activeId)); };
+  $('shareBtn').onclick = () => navigator.clipboard?.writeText(`${location.href.split('#')[0]}#v=${activeId}`).then(()=>toast('Odkaz skopírovaný'));
+  $('delBtn').onclick = async () => { if (!activeId) return; const id = activeId; videos.delete(id); saveVids(); await delBlob(id); pub(`${T_VID}/${id}`, '', {qos:1,retain:true}); switchView('home'); toast('Zmazané'); };
+  $('cmtForm').onsubmit = e => {
+    e.preventDefault(); const t = $('cmtInp').value.trim(); if (!t || !activeId) return;
+    const c = { id: 'c'+Date.now(), a: u.name, t, ts: Date.now() };
+    const arr = cmts.get(activeId) || []; arr.unshift(c); cmts.set(activeId, arr); renderCmts(activeId); $('cmtInp').value = '';
+    pub(`${T_EVT}/${activeId}`, JSON.stringify({type:'cmt', videoId:activeId, c}), {qos:1,retain:false});
+  };
+
+  // Upload videa
+  const makeThumb = file => new Promise(res => {
+    const tv = document.createElement('video'), url = URL.createObjectURL(file); tv.muted = true; tv.src = url;
+    tv.onloadedmetadata = () => tv.currentTime = Math.min(1, (tv.duration||0)*0.25);
+    tv.onseeked = () => {
+      try { const cv = document.createElement('canvas'); cv.width=320; cv.height=180; cv.getContext('2d').drawImage(tv,0,0,320,180); const th=cv.toDataURL('image/jpeg',0.55), d=tv.duration||0; URL.revokeObjectURL(url); res({th,d}); }
+      catch { URL.revokeObjectURL(url); res({th:'',d:0}); }
+    };
+    tv.onerror = () => { URL.revokeObjectURL(url); res({th:'',d:0}); };
+  });
+
+  const openUp = () => { $('vChan').value = u.name; $('idcCode').value = 'IDC-'+new Date().getFullYear()+'-'+Math.floor(1000+Math.random()*9000); $('idcOwner').value = u.name; $('upModal').classList.add('open'); };
+  $('openUploadBtn').onclick = openUp; $('emptyUploadBtn').onclick = openUp;
+  $('clsUpBtn').onclick = $('canUpBtn').onclick = () => $('upModal').classList.remove('open');
+  $('crCheck').onchange = () => $('upIdcBox').classList.toggle('hidden', !$('crCheck').checked);
+  $('dropZone').onclick = () => $('vFile').click();
+  $('vFile').onchange = () => { pickedFile = $('vFile').files[0]; if (pickedFile) { $('dropTxt').innerHTML = `<b>${esc(pickedFile.name)}</b>`; if (!$('vTitle').value) $('vTitle').value = pickedFile.name.replace(/\.[^/.]+$/,''); } };
+
+  $('upForm').onsubmit = async e => {
+    e.preventDefault();
+    const url = $('vUrl').value.trim(); if (!pickedFile && !url) return toast('Vyber súbor alebo zadaj URL');
+    const id = 'v-' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+    let thumb='', dur=0, inline='';
+    if (pickedFile) {
+      const m = await makeThumb(pickedFile); thumb = m.th; dur = m.d; await putBlob(id, pickedFile);
+      if (pickedFile.size <= 32000) inline = await new Promise(r => { const fr=new FileReader(); fr.onload=()=>r(fr.result); fr.readAsDataURL(pickedFile); });
+    }
+    const hc = $('crCheck').checked;
+    u.name = $('vChan').value.trim() || u.name; saveU(); $('profBtn').textContent = u.name[0].toUpperCase();
+    const obj = {
+      id, title:$('vTitle').value.trim(), desc:$('vDesc').value.trim(), channel:u.name, cat:$('vCat').value,
+      url, inline, thumb, dur, hasCopyright:hc, cid, views:0, likes:0, dislikes:0, ts:Date.now(),
+      idc: hc ? { code:$('idcCode').value.trim(), owner:$('idcOwner').value.trim(), lic:$('idcLic').value, reg:$('idcReg').value.trim(), desc:$('idcDesc').value.trim() } : null
+    };
+    let s = JSON.stringify(obj);
+    if (new Blob([s]).size > 58000) { obj.inline = ''; s = JSON.stringify(obj); }
+    if (new Blob([s]).size > 58000) { obj.thumb = ''; s = JSON.stringify(obj); }
+    videos.set(id, obj); saveVids(); pub(`${T_VID}/${id}`, s, {qos:1,retain:true});
+    $('upForm').reset(); pickedFile = null; $('upIdcBox').classList.add('hidden'); $('upModal').classList.remove('open');
+    switchView('home'); toast('Video zverejnené!');
+  };
+
+  // MQTT Konzola
+  $('subForm').onsubmit = e => {
+    e.preventDefault(); const t = $('subTopic').value.trim(); if (!t || !client?.connected) return;
+    if (SYS_SUBS.length + customSubs.size >= 10) return toast('Limit verejného brokera: max 10 odberov');
+    client.subscribe(t, err => err ? toast(err.message) : (customSubs.add(t), renderSubs(), $('subTopic').value=''));
+  };
+  $('pubForm').onsubmit = e => {
+    e.preventDefault();
+    if (pub($('pubTopic').value.trim(), $('pubMsg').value, {qos:0, retain:$('pubRet').checked})) { $('pubMsg').value=''; toast('Odoslané'); }
+  };
+  $('clrLogBtn').onclick = () => { mLogs.length = 0; renderLog(); };
+
+  // Navigácia a UI
+  function switchView(v) {
+    view = v;
+    document.querySelectorAll('.nav').forEach(b => b.classList.toggle('act', b.dataset.v===v));
+    $('feedView').classList.toggle('hidden', v==='watch' || v==='mqtt');
+    $('watchView').classList.toggle('hidden', v!=='watch');
+    $('mqttView').classList.toggle('hidden', v!=='mqtt');
+    if (v!=='watch') vEl.pause();
+    if (v!=='watch' && v!=='mqtt') renderFeed();
+    $('sidebar').classList.remove('mob');
+  }
+  document.querySelectorAll('.nav').forEach(b => b.onclick = () => switchView(b.dataset.v));
+  $('logoBtn').onclick = e => { e.preventDefault(); switchView('home'); };
+  $('backBtn').onclick = () => switchView('home');
+  $('hdrMqttBtn').onclick = () => switchView('mqtt');
+  $('menuBtn').onclick = () => window.innerWidth<=740 ? $('sidebar').classList.toggle('mob') : ($('sidebar').classList.toggle('mini'), $('mainEl').classList.toggle('wide'));
+  $('catChips').querySelectorAll('.chip').forEach(c => c.onclick = () => { $('catChips').querySelectorAll('.chip').forEach(x=>x.classList.remove('act')); c.classList.add('act'); cat=c.dataset.c; renderFeed(); });
+  $('searchInput').oninput = () => { q = $('searchInput').value; if (view!=='watch'&&view!=='mqtt') renderFeed(); };
+  $('searchBtn').onclick = () => { q = $('searchInput').value; switchView('home'); };
+  $('themeBtn').onclick = () => { u.theme = u.theme==='dark'?'light':'dark'; document.documentElement.setAttribute('data-theme', u.theme); saveU(); };
+  $('profBtn').onclick = () => { $('profInp').value = u.name; $('profModal').classList.add('open'); };
+  $('clsProfBtn').onclick = () => $('profModal').classList.remove('open');
+  $('profForm').onsubmit = e => { e.preventDefault(); u.name=$('profInp').value.trim()||u.name; saveU(); $('profBtn').textContent=u.name[0].toUpperCase(); $('profModal').classList.remove('open'); };
+
+  try { JSON.parse(localStorage.getItem('bte_vids')||'[]').forEach(v => v?.id && videos.set(v.id, v)); } catch {}
+  $('profBtn').textContent = u.name[0].toUpperCase();
+  renderFeed(); renderSubs(); initMqtt();
+  if (location.hash.startsWith('#v=')) setTimeout(() => openWatch(location.hash.slice(3)), 600);
+})();
+</script>
+</body>
+</html>
