@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BannaTube Exstra</title>
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.3/dist/mqtt.min.js" onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mqtt@5.10.3/dist/mqtt.min.js';document.head.appendChild(s);"></script>
 <style>
 :root{--bg:#0f0f0f;--el:#181818;--card:#222;--hov:#2c2c2c;--txt:#f1f1f1;--mut:#aaa;--brd:rgba(255,255,255,.12);--acc:#ffcc00;--red:#ff0033;--blue:#3ea6ff;--ok:#2ba640;--warn:#f59e0b;--err:#ef4444}
 html[data-theme="light"]{--bg:#fff;--el:#f6f7f9;--card:#f0f0f0;--hov:#e4e4e4;--txt:#111;--mut:#555;--brd:rgba(0,0,0,.12)}
@@ -25,6 +25,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .btn:hover{background:var(--hov)}
 .btn-acc{background:var(--acc);color:#111;border:0;font-weight:800}
 .btn-pri{background:var(--txt);color:var(--bg);border:0;font-weight:700}
+.btn-err{background:rgba(239,68,68,.15);color:var(--err);border:1px solid rgba(239,68,68,.35)}
 .dot{width:9px;height:9px;border-radius:50%;background:#888}
 .dot.Connected{background:var(--ok);box-shadow:0 0 8px var(--ok)}
 .dot.Connecting{background:var(--warn)}
@@ -45,7 +46,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .card{cursor:pointer;display:flex;flex-direction:column;gap:9px}
 .thumb{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#141414;border:1px solid var(--brd)}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.tph{width:100%;height:100%;display:grid;place-items:center;color:#888;font-weight:700}
+.tph{width:100%;height:100%;display:grid;place-items:center;background:linear-gradient(135deg,#252525,#121212);color:#ccc;font-weight:800;font-size:1.1rem}
 .bdg{position:absolute;font-size:.72rem;font-weight:700;padding:2px 7px;border-radius:5px}
 .bdg-dur{bottom:7px;right:7px;background:rgba(0,0,0,.82);color:#fff}
 .bdg-cr{top:7px;left:7px;background:var(--acc);color:#111}
@@ -88,10 +89,6 @@ button,input,select,textarea{font:inherit;color:inherit}
 .modal{width:100%;max-width:680px;max-height:92vh;overflow-y:auto;background:var(--el);border:1px solid var(--brd);border-radius:16px;padding:20px}
 .fg{margin-bottom:12px}.fg label{display:block;font-size:.83rem;font-weight:700;margin-bottom:5px}
 .fc{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--brd);background:var(--bg);outline:0}
-.drop{border:2px dashed var(--brd);border-radius:12px;padding:22px;text-align:center;cursor:pointer;background:var(--bg)}
-.drop:hover,.drop.drag{border-color:var(--acc);background:rgba(255,204,0,.05)}
-.pbar-up{height:8px;background:var(--bg);border-radius:999px;overflow:hidden;border:1px solid var(--brd);margin-top:6px}
-.pbar-up div{height:100%;width:0%;background:linear-gradient(90deg,#ffcc00,#ff0033);transition:width .15s}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;color:#fff;border:1px solid rgba(255,255,255,.2);padding:9px 16px;border-radius:999px;font-size:.85rem;opacity:0;pointer-events:none;transition:.2s;z-index:300}
 .toast.show{opacity:1}
 @media(max-width:960px){.wlayout,.mgrid{grid-template-columns:1fr}}
@@ -124,8 +121,9 @@ button,input,select,textarea{font:inherit;color:inherit}
     <button class="nav" data-v="my">🎬 <span class="lbl">Moje videá</span></button>
     <button class="nav" data-v="later">🕒 <span class="lbl">Pozrieť neskôr</span></button>
     <button class="nav" data-v="history">📜 <span class="lbl">História</span></button>
-    <button class="nav" data-v="mqtt">📡 <span class="lbl">MQTT Broker</span></button>
-    <div class="sinfo">WSS: <code>broker.connectmq.com:8084</code><br/>File Cloud: Verejný<br/>ID: <span id="sideCid"></span></div>
+    <button class="nav" data-v="mqtt">📡 <span class="lbl">MQTT Cloud</span></button>
+    <button class="nav" id="wipeSideBtn" style="color:var(--err)">🗑 <span class="lbl">Vymazať DB &amp; Cloud</span></button>
+    <div class="sinfo">WSS: <code>broker.emqx.io:8084</code><br/>ID: <span id="sideCid"></span></div>
   </aside>
 
   <main class="main" id="mainEl">
@@ -146,9 +144,9 @@ button,input,select,textarea{font:inherit;color:inherit}
       </div>
       <div class="grid" id="videoGrid"></div>
       <div class="empty hidden" id="emptyBox">
-        <h2 style="margin-bottom:8px">Zatiaľ tu nie sú žiadne videá</h2>
-        <p style="color:var(--mut);margin-bottom:16px;font-size:.92rem">V HTML nie sú vložené žiadne videá. Nahraj video súbor zo zariadenia – automaticky sa uloží do verejného File Cloudu a zosynchronizuje cez MQTT.</p>
-        <button class="btn btn-acc" id="emptyUploadBtn">+ Nahrať prvé video</button>
+        <h2 style="margin-bottom:8px">Databáza je čistá – zatiaľ tu nie sú žiadne videá</h2>
+        <p style="color:var(--mut);margin-bottom:16px;font-size:.92rem">Pridaj prvé video pomocou verejnej URL adresy (.mp4 / .webm) a okamžite sa uloží do verejného cloudu.</p>
+        <button class="btn btn-acc" id="emptyUploadBtn">+ Pridať prvé video (.mp4)</button>
       </div>
     </section>
 
@@ -158,7 +156,7 @@ button,input,select,textarea{font:inherit;color:inherit}
         <div>
           <div class="pshell" id="pShell">
             <video id="vEl" playsinline preload="metadata"></video>
-            <div class="pmsg" id="pMsg"><strong>Video nie je dostupné</strong><p id="pMsgTxt" style="color:#ccc;font-size:.86rem;max-width:440px"></p></div>
+            <div class="pmsg" id="pMsg"><strong>Nepodarilo sa prehrať video</strong><p id="pMsgTxt" style="color:#ccc;font-size:.86rem;max-width:440px"></p></div>
             <div class="pctrl">
               <div class="pbar" id="pBar"><div class="ptrack"><div class="pbuf" id="pBuf"></div><div class="pfil" id="pFil"></div></div></div>
               <div class="row" style="justify-content:space-between">
@@ -217,11 +215,17 @@ button,input,select,textarea{font:inherit;color:inherit}
     </section>
 
     <section id="mqttView" class="hidden">
-      <h2 style="margin-bottom:10px">📡 Verejný MQTT Broker (WSS)</h2>
+      <div class="row" style="justify-content:space-between;flex-wrap:wrap;margin-bottom:10px">
+        <h2>📡 EMQX Verejný MQTT Broker (WSS)</h2>
+        <div class="row">
+          <button class="btn" id="reconnBtn">🔄 Znova pripojiť</button>
+          <button class="btn btn-err" id="wipeCloudBtn">🗑 Vymazať DB &amp; Cloud</button>
+        </div>
+      </div>
       <div class="box" style="font-size:.84rem;line-height:1.5">
-        <strong>Endpoint:</strong> <code>wss://broker.connectmq.com:8084/mqtt</code> (anonymne bez mena/hesla/API)<br/>
+        <strong>Endpoint:</strong> <code>wss://broker.emqx.io:8084/mqtt</code> (anonymne bez mena/hesla/API)<br/>
         <strong>Stav:</strong> <strong id="mPanelStatus">Connecting</strong> | <strong>Client ID:</strong> <code id="mPanelCid"></code><br/>
-        <strong>Limity verejného brokera:</strong> max 64 KB/správa, max 10 správ/s, max 10 odberov (3 používa BannaTube).
+        <strong>Poznámka:</strong> Zdieľané verejné MQTT prostredie – správy nie sú súkromné a viditeľné sú iba témy povolené verejným brokerom.
       </div>
       <div class="mgrid">
         <div class="box">
@@ -232,7 +236,7 @@ button,input,select,textarea{font:inherit;color:inherit}
           <hr style="border:0;border-top:1px solid var(--brd);margin:14px 0"/>
           <h3 style="margin-bottom:8px;font-size:.96rem">Publish správu</h3>
           <form id="pubForm">
-            <div class="fg"><label>Topic</label><input id="pubTopic" class="fc" value="bannatube/exstra/chat" required /></div>
+            <div class="fg"><label>Topic</label><input id="pubTopic" class="fc" value="bannatube/exstra/v2/chat" required /></div>
             <div class="fg"><label>Správa</label><textarea id="pubMsg" class="fc" rows="2" required></textarea></div>
             <label class="row" style="font-size:.83rem;margin-bottom:10px"><input type="checkbox" id="pubRet" /> Retain</label>
             <button class="btn btn-acc" type="submit" style="width:100%;justify-content:center">Publish</button>
@@ -240,7 +244,7 @@ button,input,select,textarea{font:inherit;color:inherit}
         </div>
         <div class="box">
           <div class="row" style="justify-content:space-between;margin-bottom:8px">
-            <h3 style="font-size:.96rem">Prijaté správy</h3>
+            <h3 style="font-size:.96rem">Prijaté správy v reálnom čase</h3>
             <button class="btn" id="clrLogBtn" style="padding:4px 10px;font-size:.76rem">Vyčistiť</button>
           </div>
           <div class="mlog" id="mLog"><div style="color:var(--mut)">Čakám na správy...</div></div>
@@ -253,22 +257,24 @@ button,input,select,textarea{font:inherit;color:inherit}
 <div class="modal-bg" id="upModal">
   <div class="modal">
     <div class="row" style="justify-content:space-between;margin-bottom:12px">
-      <h3>Nahrať video do File Cloudu</h3>
+      <h3>Pridať video na BannaTube Exstra</h3>
       <button class="ibtn" id="clsUpBtn">✕</button>
     </div>
     <form id="upForm">
       <div class="fg">
-        <div class="drop" id="dropZone">
-          <input type="file" id="vFile" accept="video/*" class="hidden" />
-          <div id="dropTxt"><strong>Klikni alebo sem potiahni video (.mp4, .webm, .mov)</strong><br/><span style="font-size:.78rem;color:var(--mut)">Automaticky sa nahrá do verejného File Cloudu (do 100 MB) + IndexedDB.</span></div>
-        </div>
+        <label>Verejná URL adresa videa (.mp4 / .webm) *</label>
+        <input type="url" id="vUrl" class="fc" placeholder="https://example.com/moje-video.mp4" required />
       </div>
-      <div class="fg"><label>Názov videa *</label><input id="vTitle" class="fc" required /></div>
+      <div class="fg">
+        <label>URL obrázka miniatúry (voliteľné)</label>
+        <input type="url" id="vThumb" class="fc" placeholder="https://example.com/nahlad.jpg" />
+      </div>
+      <div class="fg"><label>Názov videa *</label><input id="vTitle" class="fc" placeholder="Zadaj názov videa..." required /></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="fg"><label>Kanál *</label><input id="vChan" class="fc" required /></div>
         <div class="fg"><label>Kategória</label><select id="vCat" class="fc"><option>Zábava</option><option>Hudba</option><option>Gaming</option><option>Tech</option><option>Vlogy</option><option>Vzdelávanie</option></select></div>
       </div>
-      <div class="fg"><label>Popis videa</label><textarea id="vDesc" class="fc" rows="2"></textarea></div>
+      <div class="fg"><label>Popis videa</label><textarea id="vDesc" class="fc" rows="3" placeholder="Popíš svoje video..."></textarea></div>
       <label class="row" style="padding:10px;border:1px solid var(--brd);border-radius:10px;margin-bottom:10px;cursor:pointer">
         <input type="checkbox" id="crCheck" />
         <span style="font-size:.86rem"><strong>Obsahuje video Copyright?</strong> (Zobraziť tabuľku popisu <strong>ID Connect</strong>)</span>
@@ -283,13 +289,9 @@ button,input,select,textarea{font:inherit;color:inherit}
           <tr><th>ID Connect popis</th><td><textarea id="idcDesc" class="fc" rows="2" placeholder="Popis chráneného obsahu..."></textarea></td></tr>
         </tbody></table>
       </div>
-      <div id="upProgBox" class="hidden" style="margin-bottom:12px">
-        <div id="upProgTxt" style="font-size:.82rem;color:var(--acc)"></div>
-        <div class="pbar-up"><div id="upProgBar"></div></div>
-      </div>
       <div class="row" style="justify-content:flex-end">
         <button type="button" class="btn" id="canUpBtn">Zrušiť</button>
-        <button type="submit" class="btn btn-acc" id="pubVidBtn">Zverejniť video</button>
+        <button type="submit" class="btn btn-acc" id="pubVidBtn">Zverejniť do Cloudu</button>
       </div>
     </form>
   </div>
@@ -309,13 +311,21 @@ button,input,select,textarea{font:inherit;color:inherit}
 
 <script>
 (() => {
-  const BROKER = 'wss://broker.connectmq.com:8084/mqtt';
-  const T_VID = 'bannatube/exstra/videos', T_EVT = 'bannatube/exstra/events', T_CHK = 'bannatube/exstra/chunks';
-  const SYS_SUBS = [`${T_VID}/+`, `${T_EVT}/+`, `${T_CHK}/+`];
-  const cid = 'bannatube-' + Math.random().toString(16).slice(2, 10);
+  if (!localStorage.getItem('bte_clean_v3')) {
+    localStorage.removeItem('bte_vids');
+    localStorage.removeItem('bannatube_exstra_videos_v1');
+    try { indexedDB.deleteDatabase('BannaTubeExstraDB'); } catch {}
+    localStorage.setItem('bte_clean_v3', '1');
+  }
 
-  let client = null, status = 'Disconnected', view = 'home', cat = 'Všetko', q = '', activeId = null, pickedFile = null;
-  const customSubs = new Set(), mLogs = [], videos = new Map(), cmts = new Map(), blobs = new Map(), chunkBuf = new Map();
+  const BROKER = 'wss://broker.emqx.io:8084/mqtt';
+  const T_VID = 'bannatube/exstra/v2/videos';
+  const T_EVT = 'bannatube/exstra/v2/events';
+  const SYS_SUBS = [`${T_VID}/+`, `${T_EVT}/+`];
+  const cid = "GrooveVortex_" + Math.random().toString(16).slice(2);
+
+  let client = null, status = 'Disconnected', view = 'home', cat = 'Všetko', q = '', activeId = null;
+  const customSubs = new Set(), mLogs = [], videos = new Map(), cmts = new Map();
 
   const u = JSON.parse(localStorage.getItem('bte_user') || '{}');
   u.name ??= 'Tvorca ' + cid.slice(-4).toUpperCase();
@@ -328,62 +338,24 @@ button,input,select,textarea{font:inherit;color:inherit}
   const fmt = s => !isFinite(s) ? '0:00' : `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
   const ago = ts => { const d = Math.max(1, Math.floor((Date.now()-ts)/1000)); return d<60?'pred chvíľou':d<3600?`pred ${Math.floor(d/60)} min`:`pred ${Math.floor(d/3600)} h`; };
   const saveU = () => localStorage.setItem('bte_user', JSON.stringify(u));
-  const saveVids = () => { try { localStorage.setItem('bte_vids', JSON.stringify([...videos.values()])); } catch {} };
-
-  const openDB = () => new Promise((res, rej) => {
-    const r = indexedDB.open('BannaTubeExstraDB', 1);
-    r.onupgradeneeded = () => r.result.createObjectStore('files');
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
-  });
-  const putBlob = async (id, b) => { const db = await openDB(); return new Promise(r => { const tx = db.transaction('files','readwrite'); tx.objectStore('files').put(b, id); tx.oncomplete = r; }); };
-  const getBlob = async id => { const db = await openDB(); return new Promise(r => { const q = db.transaction('files','readonly').objectStore('files').get(id); q.onsuccess = () => r(q.result||null); q.onerror = () => r(null); }); };
-  const delBlob = async id => { const db = await openDB(); const tx = db.transaction('files','readwrite'); tx.objectStore('files').delete(id); };
-
-  // Verejný anonymný File Cloud upload cez XHR s ukazovateľom priebehu
-  function xhrUpload(url, field, file, onProg) {
-    return new Promise((res, rej) => {
-      const xhr = new XMLHttpRequest(), fd = new FormData();
-      fd.append(field, file, file.name);
-      xhr.open('POST', url, true);
-      xhr.upload.onprogress = e => { if (e.lengthComputable) onProg(Math.round(e.loaded / e.total * 100)); };
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try { res(JSON.parse(xhr.responseText)); } catch { rej(new Error('Neplatná odpoveď cloudu')); }
-        } else rej(new Error('HTTP ' + xhr.status));
-      };
-      xhr.onerror = () => rej(new Error('Sieť/CORS blokované'));
-      xhr.send(fd);
-    });
-  }
-
-  async function uploadToPublicCloud(file, onProg) {
-    // 1. Primárny verejný File Cloud: tmpfiles.org (do 100 MB, priamy stream /dl/)
-    try {
-      const j = await xhrUpload('https://tmpfiles.org/api/v1/upload', 'file', file, p => onProg(p, 'Nahrávam do File Cloudu (tmpfiles.org)'));
-      let u = j?.data?.url;
-      if (u) {
-        u = u.replace(/^http:/i, 'https:');
-        if (!u.includes('tmpfiles.org/dl/')) u = u.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
-        return { cloudUrl: u, cloudName: 'File Cloud' };
-      }
-    } catch {}
-    // 2. Záložný verejný File Cloud: uguu.se (do 128 MB)
-    try {
-      const j = await xhrUpload('https://uguu.se/upload', 'files[]', file, p => onProg(p, 'Nahrávam do záložného File Cloudu (uguu.se)'));
-      const u = j?.files?.[0]?.url;
-      if (u) return { cloudUrl: u, cloudName: 'File Cloud' };
-    } catch {}
-    return { cloudUrl: '', cloudName: '' };
-  }
+  const saveVids = () => { try { localStorage.setItem('bte_vids_v2', JSON.stringify([...videos.values()])); } catch {} };
 
   function setStatus(s, d='') {
-    status = s; $('hdrDot').className = 'dot ' + s;
-    $('hdrStatus').textContent = s; $('mPanelStatus').textContent = d ? `${s} (${d})` : s;
+    status = s;
+    $('hdrDot').className = 'dot ' + s;
+    $('hdrStatus').textContent = s;
+    $('mPanelStatus').textContent = d ? `${s} (${d})` : s;
+  }
+
+  function addLog(t, p, r=false) {
+    mLogs.unshift({ t, p, r, ts: new Date().toLocaleTimeString() });
+    if (mLogs.length > 80) mLogs.pop();
+    renderLog();
   }
 
   function renderSubs() {
     const cnt = SYS_SUBS.length + customSubs.size;
-    $('subLimit').textContent = `Aktívne odbery: ${cnt} / 10 (3 systémové + vlastné)`;
+    $('subLimit').textContent = `Aktívne odbery: ${cnt} (${SYS_SUBS.length} systémové + ${customSubs.size} vlastné)`;
     $('subList').innerHTML = [...customSubs].map(t => `<span class="subchip">${esc(t)}<button data-u="${esc(t)}">✕</button></span>`).join('');
     $('subList').querySelectorAll('button').forEach(b => b.onclick = () => {
       const t = b.dataset.u; client?.unsubscribe(t); customSubs.delete(t); renderSubs();
@@ -392,55 +364,60 @@ button,input,select,textarea{font:inherit;color:inherit}
 
   function renderLog() {
     $('mLog').innerHTML = mLogs.length ? mLogs.map(m =>
-      `<div class="mmsg"><div style="color:var(--mut);font-size:.72rem"><b>${esc(m.t)}</b> ${m.r?'• retained':''} (${m.ts})</div><div>${esc(m.p.slice(0,300))}</div></div>`
+      `<div class="mmsg"><div style="color:var(--mut);font-size:.72rem"><b>${esc(m.t)}</b> ${m.r?'• retained':''} (${m.ts})</div><div>${esc(m.p.slice(0,350))}</div></div>`
     ).join('') : '<div style="color:var(--mut)">Čakám na správy...</div>';
   }
 
-  async function handleChunkMsg(txt) {
-    try {
-      const c = JSON.parse(txt);
-      if (!c?.vid || typeof c.i !== 'number' || !c.n || !c.d || await getBlob(c.vid)) return;
-      let e = chunkBuf.get(c.vid);
-      if (!e) { e = { n: c.n, mime: c.m || 'video/mp4', parts: new Array(c.n), got: 0 }; chunkBuf.set(c.vid, e); }
-      if (!e.parts[c.i]) { e.parts[c.i] = c.d; e.got++; }
-      if (e.got === e.n) {
-        const bytes = e.parts.map(b64 => { const bin = atob(b64), a = new Uint8Array(bin.length); for (let j=0; j<bin.length; j++) a[j] = bin.charCodeAt(j); return a; });
-        const blob = new Blob(bytes, { type: e.mime });
-        await putBlob(c.vid, blob); chunkBuf.delete(c.vid);
-        if (activeId === c.vid && !vEl.src) {
-          const bu = URL.createObjectURL(blob); blobs.set(c.vid, bu);
-          $('pMsg').classList.remove('show'); vEl.src = bu; vEl.play().catch(()=>{});
-        }
-      }
-    } catch {}
-  }
-
   function initMqtt() {
-    $('sideCid').textContent = cid; $('mPanelCid').textContent = cid; setStatus('Connecting');
-    client = mqtt.connect(BROKER, { clientId: cid, clean: true, reconnectPeriod: 3000, connectTimeout: 10000 });
+    $('sideCid').textContent = cid; $('mPanelCid').textContent = cid;
+    if (typeof mqtt === 'undefined') {
+      setStatus('Error', 'MQTT.js CDN nedostupné');
+      addLog('SYSTEM', 'Knižnicu MQTT.js sa nepodarilo načítať z CDN.');
+      return;
+    }
+    if (client) { try { client.end(true); } catch {} }
+    setStatus('Connecting');
+
+    client = mqtt.connect(BROKER, {
+      clientId: cid,
+      protocolVersion: 4,
+      clean: true,
+      reconnectPeriod: 3000,
+      connectTimeout: 10000
+    });
+
     client.on('connect', () => {
       setStatus('Connected');
-      SYS_SUBS.forEach(t => client.subscribe(t, { qos: 1 }));
-      customSubs.forEach(t => client.subscribe(t, { qos: 0 }));
+      client.subscribe(SYS_SUBS, { qos: 0 }, (err) => {
+        if (err) addLog('SYSTEM', 'Subscribe chyba: ' + err.message);
+      });
+      if (customSubs.size) client.subscribe([...customSubs], { qos: 0 });
       renderSubs();
     });
+
     client.on('reconnect', () => setStatus('Connecting', 'Reconnecting...'));
     client.on('offline', () => setStatus('Disconnected'));
     client.on('close', () => { if (status !== 'Error') setStatus('Disconnected'); });
-    client.on('error', e => setStatus('Error', e?.message || 'Error'));
+
+    client.on('error', e => {
+      const msg = e?.message || 'Chyba spojenia';
+      setStatus('Error', msg);
+      addLog('ERROR', msg);
+    });
+
     client.on('message', (t, msg, pkt) => {
       const txt = msg.toString();
-      if (!t.startsWith(T_CHK + '/')) {
-        mLogs.unshift({ t, p: txt, r: !!pkt?.retain, ts: new Date().toLocaleTimeString() });
-        if (mLogs.length > 80) mLogs.pop();
-        renderLog();
-      }
-      if (t.startsWith(T_CHK + '/')) { handleChunkMsg(txt); return; }
+      addLog(t, txt, !!pkt?.retain);
+
       if (t.startsWith(T_VID + '/')) {
-        if (!txt) { videos.delete(t.split('/').pop()); saveVids(); if (view!=='watch'&&view!=='mqtt') renderFeed(); return; }
+        if (!txt) {
+          videos.delete(t.split('/').pop()); saveVids();
+          if (view!=='watch'&&view!=='mqtt') renderFeed();
+          return;
+        }
         try {
           const v = JSON.parse(txt);
-          if (v?.id && v?.title) {
+          if (v?.id && v?.title && v?.url) {
             const ex = videos.get(v.id);
             videos.set(v.id, { ...ex, ...v, views: Math.max(ex?.views||0, v.views||0), likes: Math.max(ex?.likes||0, v.likes||0), dislikes: Math.max(ex?.dislikes||0, v.dislikes||0) });
             saveVids();
@@ -466,9 +443,24 @@ button,input,select,textarea{font:inherit;color:inherit}
   }
 
   function pub(t, p, opts={qos:0,retain:false}) {
-    if (!client?.connected) return false;
-    if (new Blob([p]).size > 58000) { toast('Správa prekročila limit 64 KB verejného brokera'); return false; }
-    client.publish(t, p, opts); return true;
+    if (!client?.connected) { toast('MQTT Cloud nie je pripojený'); return false; }
+    client.publish(t, p, opts);
+    return true;
+  }
+
+  function wipeAllDatabaseAndCloud() {
+    if (!confirm('Naozaj chceš vymazať všetky videá z databázy a cloudu?')) return;
+    const ids = [...videos.keys()];
+    videos.clear(); cmts.clear();
+    u.hist = []; u.later = []; u.likes = {};
+    saveU(); localStorage.removeItem('bte_vids_v2');
+    try { indexedDB.deleteDatabase('BannaTubeExstraDB'); } catch {}
+    if (client?.connected) {
+      ids.forEach(id => client.publish(`${T_VID}/${id}`, '', { qos: 0, retain: true }));
+    }
+    if (view === 'watch') switchView('home');
+    else renderFeed();
+    toast('Celá databáza aj cloud boli vymazané');
   }
 
   function renderFeed() {
@@ -493,10 +485,10 @@ button,input,select,textarea{font:inherit;color:inherit}
     $('videoGrid').innerHTML = list.map(v => `
       <div class="card" data-id="${esc(v.id)}">
         <div class="thumb">
-          ${v.thumb ? `<img src="${esc(v.thumb)}" alt="" loading="lazy"/>` : `<div class="tph">▶ Video</div>`}
+          ${v.thumb ? `<img src="${esc(v.thumb)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=tph>▶ MP4</div>'"/>` : `<div class="tph">▶ MP4</div>`}
           ${v.hasCopyright ? `<span class="bdg bdg-cr">© ID Connect</span>` : ''}
-          <span class="bdg bdg-src">${v.cloudUrl?'File Cloud':v.sharedMqtt?'MQTT Cloud':'Lokálne DB'}</span>
-          <span class="bdg bdg-dur">${fmt(v.dur||0)}</span>
+          <span class="bdg bdg-src">Cloud URL</span>
+          <span class="bdg bdg-dur">${v.dur?fmt(v.dur):'HD'}</span>
         </div>
         <div class="row" style="align-items:flex-start">
           <div class="av">${esc((v.channel||'B')[0].toUpperCase())}</div>
@@ -507,40 +499,32 @@ button,input,select,textarea{font:inherit;color:inherit}
   }
 
   const vEl = $('vEl');
-  async function openWatch(id) {
+  function openWatch(id) {
     const v = videos.get(id); if (!v) return;
     activeId = id; switchView('watch');
     u.hist = [id, ...u.hist.filter(x=>x!==id)].slice(0,40); saveU();
     v.views = (v.views||0) + 1; saveVids();
-    pub(`${T_EVT}/${id}`, JSON.stringify({type:'react', videoId:id, views:v.views}));
+    if (client?.connected) client.publish(`${T_EVT}/${id}`, JSON.stringify({type:'react', videoId:id, views:v.views}));
 
-    $('pMsg').classList.remove('show'); vEl.pause(); vEl.removeAttribute('src');
-    let bu = blobs.get(id);
-    if (!bu) { const b = await getBlob(id); if (b) { bu = URL.createObjectURL(b); blobs.set(id, bu); } }
-
-    if (bu) {
-      vEl.src = bu;
-    } else if (v.cloudUrl) {
-      vEl.src = v.cloudUrl;
-      vEl.onerror = () => {
-        $('pMsgTxt').textContent = 'Súbor v dočasnom anonymnom File Cloude už expiroval alebo je nedostupný.';
-        $('pMsg').classList.add('show');
-      };
-    } else {
-      $('pMsgTxt').textContent = v.sharedMqtt
-        ? 'Video sa sťahuje z MQTT cloudu, počkaj chvíľu...'
-        : 'Video sa nepodarilo nahrať do verejného File Cloudu a je len v lokálnom zariadení autora.';
+    $('pMsg').classList.remove('show');
+    vEl.pause();
+    vEl.src = v.url;
+    vEl.onerror = () => {
+      $('pMsgTxt').textContent = 'Skontroluj, či zadaná URL adresa smeruje priamo na verejný .mp4 alebo .webm súbor.';
       $('pMsg').classList.add('show');
-    }
+    };
+    vEl.onloadedmetadata = () => {
+      if (isFinite(vEl.duration) && vEl.duration > 0 && !v.dur) { v.dur = vEl.duration; saveVids(); }
+    };
 
     renderWatchMeta(v); renderCmts(id);
     $('upNext').innerHTML = [...videos.values()].filter(x=>x.id!==id).slice(0,10).map(x=>`
       <div class="upitem" data-id="${esc(x.id)}">
-        <div class="upthumb">${x.thumb?`<img src="${esc(x.thumb)}"/>`:`<div class="tph">▶</div>`}<span class="bdg bdg-dur">${fmt(x.dur||0)}</span></div>
+        <div class="upthumb">${x.thumb?`<img src="${esc(x.thumb)}"/>`:`<div class="tph">▶</div>`}<span class="bdg bdg-dur">${x.dur?fmt(x.dur):'HD'}</span></div>
         <div><div class="ctitle" style="font-size:.86rem">${esc(x.title)}</div><div class="csub">${esc(x.channel)}</div></div>
       </div>`).join('');
     $('upNext').querySelectorAll('.upitem').forEach(el => el.onclick = () => openWatch(el.dataset.id));
-    if (bu || v.cloudUrl) vEl.play().catch(()=>{});
+    vEl.play().catch(()=>{});
   }
 
   function renderWatchMeta(v) {
@@ -600,101 +584,55 @@ button,input,select,textarea{font:inherit;color:inherit}
   $('subBtn').onclick = () => { const v = videos.get(activeId); if (!v) return; u.subs = u.subs.includes(v.channel) ? u.subs.filter(c=>c!==v.channel) : [...u.subs, v.channel]; saveU(); renderWatchMeta(v); };
   $('laterBtn').onclick = () => { if (!activeId) return; u.later = u.later.includes(activeId) ? u.later.filter(x=>x!==activeId) : [...u.later, activeId]; saveU(); renderWatchMeta(videos.get(activeId)); };
   $('shareBtn').onclick = () => navigator.clipboard?.writeText(`${location.href.split('#')[0]}#v=${activeId}`).then(()=>toast('Odkaz skopírovaný'));
-  $('delBtn').onclick = async () => { if (!activeId) return; const id = activeId; videos.delete(id); saveVids(); await delBlob(id); pub(`${T_VID}/${id}`, '', {qos:1,retain:true}); switchView('home'); toast('Zmazané'); };
+  $('delBtn').onclick = () => { if (!activeId) return; const id = activeId; videos.delete(id); saveVids(); pub(`${T_VID}/${id}`, '', {qos:0,retain:true}); switchView('home'); toast('Zmazané'); };
   $('cmtForm').onsubmit = e => {
     e.preventDefault(); const t = $('cmtInp').value.trim(); if (!t || !activeId) return;
     const c = { id: 'c'+Date.now(), a: u.name, t, ts: Date.now() };
     const arr = cmts.get(activeId) || []; arr.unshift(c); cmts.set(activeId, arr); renderCmts(activeId); $('cmtInp').value = '';
-    pub(`${T_EVT}/${activeId}`, JSON.stringify({type:'cmt', videoId:activeId, c}), {qos:1,retain:false});
+    pub(`${T_EVT}/${activeId}`, JSON.stringify({type:'cmt', videoId:activeId, c}), {qos:0,retain:false});
   };
-
-  const makeThumb = file => new Promise(res => {
-    const tv = document.createElement('video'), url = URL.createObjectURL(file); tv.muted = true; tv.src = url;
-    tv.onloadedmetadata = () => tv.currentTime = Math.min(1, (tv.duration||0)*0.25);
-    tv.onseeked = () => {
-      try { const cv = document.createElement('canvas'); cv.width=320; cv.height=180; cv.getContext('2d').drawImage(tv,0,0,320,180); const th=cv.toDataURL('image/jpeg',0.55), d=tv.duration||0; URL.revokeObjectURL(url); res({th,d}); }
-      catch { URL.revokeObjectURL(url); res({th:'',d:0}); }
-    };
-    tv.onerror = () => { URL.revokeObjectURL(url); res({th:'',d:0}); };
-  });
-
-  const sliceToB64 = slice => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(',')[1]); fr.readAsDataURL(slice); });
 
   const openUp = () => { $('vChan').value = u.name; $('idcCode').value = 'IDC-'+new Date().getFullYear()+'-'+Math.floor(1000+Math.random()*9000); $('idcOwner').value = u.name; $('upModal').classList.add('open'); };
   $('openUploadBtn').onclick = openUp; $('emptyUploadBtn').onclick = openUp;
   $('clsUpBtn').onclick = $('canUpBtn').onclick = () => $('upModal').classList.remove('open');
   $('crCheck').onchange = () => $('upIdcBox').classList.toggle('hidden', !$('crCheck').checked);
 
-  const pickFile = f => {
-    if (!f?.type.startsWith('video/')) return toast('Vyber platný video súbor');
-    pickedFile = f;
-    $('dropTxt').innerHTML = `<b>${esc(f.name)}</b> (${(f.size/1048576).toFixed(2)} MB)`;
-    if (!$('vTitle').value) $('vTitle').value = f.name.replace(/\.[^/.]+$/,'');
-  };
-  $('dropZone').onclick = () => $('vFile').click();
-  $('dropZone').ondragover = e => { e.preventDefault(); $('dropZone').classList.add('drag'); };
-  $('dropZone').ondragleave = () => $('dropZone').classList.remove('drag');
-  $('dropZone').ondrop = e => { e.preventDefault(); $('dropZone').classList.remove('drag'); pickFile(e.dataTransfer.files[0]); };
-  $('vFile').onchange = () => pickFile($('vFile').files[0]);
-
-  $('upForm').onsubmit = async e => {
+  $('upForm').onsubmit = e => {
     e.preventDefault();
-    if (!pickedFile) return toast('Najprv vyber video súbor zo zariadenia');
-    $('pubVidBtn').disabled = true; $('upProgBox').classList.remove('hidden');
-    const setProg = (pct, msg) => { $('upProgBar').style.width = pct+'%'; $('upProgTxt').textContent = `${msg} (${pct}%)`; };
-    setProg(5, 'Generujem náhľad a ukladám do IndexedDB');
-
+    const url = $('vUrl').value.trim();
+    if (!url) return toast('Zadaj verejnú URL adresu .mp4 / .webm videa');
     const id = 'v-' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
-    const m = await makeThumb(pickedFile);
-    await putBlob(id, pickedFile);
-
-    // 1) Upload do verejného File Cloudu (tmpfiles.org / uguu.se)
-    const { cloudUrl } = await uploadToPublicCloud(pickedFile, setProg);
-    let sharedMqtt = false;
-
-    // 2) Ak File Cloud neprešiel a súbor má <= 1,5 MB, záloha cez MQTT balíčky
-    if (!cloudUrl && pickedFile.size <= 1500000 && client?.connected) {
-      sharedMqtt = true;
-      const CHUNK = 28000, total = Math.ceil(pickedFile.size / CHUNK);
-      for (let i=0; i<total; i++) {
-        setProg(Math.round((i+1)/total*100), 'Nahrávam cez záložný MQTT Cloud');
-        const b64 = await sliceToB64(pickedFile.slice(i*CHUNK, (i+1)*CHUNK));
-        pub(`${T_CHK}/${id}_${i}`, JSON.stringify({vid:id, i, n:total, m:pickedFile.type, d:b64}), {qos:1, retain:true});
-        await new Promise(r => setTimeout(r, 170));
-      }
-    }
-
     const hc = $('crCheck').checked;
     u.name = $('vChan').value.trim() || u.name; saveU(); $('profBtn').textContent = u.name[0].toUpperCase();
+
     const obj = {
-      id, title:$('vTitle').value.trim(), desc:$('vDesc').value.trim(), channel:u.name, cat:$('vCat').value,
-      cloudUrl, sharedMqtt, thumb:m.th, dur:m.d, hasCopyright:hc, cid, views:0, likes:0, dislikes:0, ts:Date.now(),
+      id, url, thumb:$('vThumb').value.trim(), title:$('vTitle').value.trim(), desc:$('vDesc').value.trim(),
+      channel:u.name, cat:$('vCat').value, dur:0, hasCopyright:hc, cid, views:0, likes:0, dislikes:0, ts:Date.now(),
       idc: hc ? { code:$('idcCode').value.trim(), owner:$('idcOwner').value.trim(), lic:$('idcLic').value, reg:$('idcReg').value.trim(), desc:$('idcDesc').value.trim() } : null
     };
-    let s = JSON.stringify(obj);
-    if (new Blob([s]).size > 58000) { obj.thumb = ''; s = JSON.stringify(obj); }
 
-    videos.set(id, obj); saveVids(); pub(`${T_VID}/${id}`, s, {qos:1, retain:true});
-    $('upForm').reset(); pickedFile = null; $('dropTxt').innerHTML = '<strong>Klikni alebo sem potiahni video (.mp4, .webm, .mov)</strong>';
-    $('upIdcBox').classList.add('hidden'); $('upProgBox').classList.add('hidden'); $('pubVidBtn').disabled = false;
-    $('upModal').classList.remove('open'); switchView('home');
-    toast(cloudUrl ? 'Video nahrané do verejného File Cloudu!' : 'Uložené do IndexedDB' + (sharedMqtt ? ' + MQTT' : ''));
+    videos.set(id, obj); saveVids();
+    pub(`${T_VID}/${id}`, JSON.stringify(obj), { qos: 0, retain: true });
+    $('upForm').reset(); $('upIdcBox').classList.add('hidden'); $('upModal').classList.remove('open');
+    switchView('home'); toast('Video zverejnené!');
   };
 
   $('subForm').onsubmit = e => {
     e.preventDefault(); const t = $('subTopic').value.trim(); if (!t || !client?.connected) return;
-    if (SYS_SUBS.length + customSubs.size >= 10) return toast('Limit verejného brokera: max 10 odberov');
-    client.subscribe(t, err => err ? toast(err.message) : (customSubs.add(t), renderSubs(), $('subTopic').value=''));
+    client.subscribe(t, { qos: 0 }, err => err ? toast(err.message) : (customSubs.add(t), renderSubs(), $('subTopic').value=''));
   };
   $('pubForm').onsubmit = e => {
     e.preventDefault();
     if (pub($('pubTopic').value.trim(), $('pubMsg').value, {qos:0, retain:$('pubRet').checked})) { $('pubMsg').value=''; toast('Odoslané'); }
   };
   $('clrLogBtn').onclick = () => { mLogs.length = 0; renderLog(); };
+  $('reconnBtn').onclick = () => initMqtt();
+  $('wipeSideBtn').onclick = wipeAllDatabaseAndCloud;
+  $('wipeCloudBtn').onclick = wipeAllDatabaseAndCloud;
 
   function switchView(v) {
     view = v;
-    document.querySelectorAll('.nav').forEach(b => b.classList.toggle('act', b.dataset.v===v));
+    document.querySelectorAll('.nav[data-v]').forEach(b => b.classList.toggle('act', b.dataset.v===v));
     $('feedView').classList.toggle('hidden', v==='watch' || v==='mqtt');
     $('watchView').classList.toggle('hidden', v!=='watch');
     $('mqttView').classList.toggle('hidden', v!=='mqtt');
@@ -702,7 +640,7 @@ button,input,select,textarea{font:inherit;color:inherit}
     if (v!=='watch' && v!=='mqtt') renderFeed();
     $('sidebar').classList.remove('mob');
   }
-  document.querySelectorAll('.nav').forEach(b => b.onclick = () => switchView(b.dataset.v));
+  document.querySelectorAll('.nav[data-v]').forEach(b => b.onclick = () => switchView(b.dataset.v));
   $('logoBtn').onclick = e => { e.preventDefault(); switchView('home'); };
   $('backBtn').onclick = () => switchView('home');
   $('hdrMqttBtn').onclick = () => switchView('mqtt');
@@ -715,9 +653,10 @@ button,input,select,textarea{font:inherit;color:inherit}
   $('clsProfBtn').onclick = () => $('profModal').classList.remove('open');
   $('profForm').onsubmit = e => { e.preventDefault(); u.name=$('profInp').value.trim()||u.name; saveU(); $('profBtn').textContent=u.name[0].toUpperCase(); $('profModal').classList.remove('open'); };
 
-  try { JSON.parse(localStorage.getItem('bte_vids')||'[]').forEach(v => v?.id && videos.set(v.id, v)); } catch {}
+  try { JSON.parse(localStorage.getItem('bte_vids_v2')||'[]').forEach(v => v?.id && v?.url && videos.set(v.id, v)); } catch {}
   $('profBtn').textContent = u.name[0].toUpperCase();
-  renderFeed(); renderSubs(); initMqtt();
+  renderFeed(); renderSubs();
+  window.addEventListener('load', initMqtt);
   if (location.hash.startsWith('#v=')) setTimeout(() => openWatch(location.hash.slice(3)), 600);
 })();
 </script>
