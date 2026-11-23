@@ -90,6 +90,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .fc{width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--brd);background:var(--bg);outline:0}
 .drop{border:2px dashed var(--brd);border-radius:12px;padding:22px;text-align:center;cursor:pointer;background:var(--bg)}
 .drop:hover,.drop.drag{border-color:var(--acc);background:rgba(255,204,0,.05)}
+.pbar-up{height:8px;background:var(--bg);border-radius:999px;overflow:hidden;border:1px solid var(--brd);margin-top:6px}
+.pbar-up div{height:100%;width:0%;background:linear-gradient(90deg,#ffcc00,#ff0033);transition:width .15s}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;color:#fff;border:1px solid rgba(255,255,255,.2);padding:9px 16px;border-radius:999px;font-size:.85rem;opacity:0;pointer-events:none;transition:.2s;z-index:300}
 .toast.show{opacity:1}
 @media(max-width:960px){.wlayout,.mgrid{grid-template-columns:1fr}}
@@ -123,7 +125,7 @@ button,input,select,textarea{font:inherit;color:inherit}
     <button class="nav" data-v="later">🕒 <span class="lbl">Pozrieť neskôr</span></button>
     <button class="nav" data-v="history">📜 <span class="lbl">História</span></button>
     <button class="nav" data-v="mqtt">📡 <span class="lbl">MQTT Broker</span></button>
-    <div class="sinfo">WSS: <code>broker.connectmq.com:8084</code><br/>ID: <span id="sideCid"></span></div>
+    <div class="sinfo">WSS: <code>broker.connectmq.com:8084</code><br/>File Cloud: Verejný<br/>ID: <span id="sideCid"></span></div>
   </aside>
 
   <main class="main" id="mainEl">
@@ -145,7 +147,7 @@ button,input,select,textarea{font:inherit;color:inherit}
       <div class="grid" id="videoGrid"></div>
       <div class="empty hidden" id="emptyBox">
         <h2 style="margin-bottom:8px">Zatiaľ tu nie sú žiadne videá</h2>
-        <p style="color:var(--mut);margin-bottom:16px;font-size:.92rem">V HTML nie sú vložené žiadne videá. Nahraj video súbor priamo zo svojho zariadenia – žiadne URL adresy netreba.</p>
+        <p style="color:var(--mut);margin-bottom:16px;font-size:.92rem">V HTML nie sú vložené žiadne videá. Nahraj video súbor zo zariadenia – automaticky sa uloží do verejného File Cloudu a zosynchronizuje cez MQTT.</p>
         <button class="btn btn-acc" id="emptyUploadBtn">+ Nahrať prvé video</button>
       </div>
     </section>
@@ -156,7 +158,7 @@ button,input,select,textarea{font:inherit;color:inherit}
         <div>
           <div class="pshell" id="pShell">
             <video id="vEl" playsinline preload="metadata"></video>
-            <div class="pmsg" id="pMsg"><strong>Video sa sťahuje alebo je uložené lokálne</strong><p id="pMsgTxt" style="color:#ccc;font-size:.86rem;max-width:440px"></p></div>
+            <div class="pmsg" id="pMsg"><strong>Video nie je dostupné</strong><p id="pMsgTxt" style="color:#ccc;font-size:.86rem;max-width:440px"></p></div>
             <div class="pctrl">
               <div class="pbar" id="pBar"><div class="ptrack"><div class="pbuf" id="pBuf"></div><div class="pfil" id="pFil"></div></div></div>
               <div class="row" style="justify-content:space-between">
@@ -251,14 +253,14 @@ button,input,select,textarea{font:inherit;color:inherit}
 <div class="modal-bg" id="upModal">
   <div class="modal">
     <div class="row" style="justify-content:space-between;margin-bottom:12px">
-      <h3>Nahrať video na BannaTube Exstra</h3>
+      <h3>Nahrať video do File Cloudu</h3>
       <button class="ibtn" id="clsUpBtn">✕</button>
     </div>
     <form id="upForm">
       <div class="fg">
         <div class="drop" id="dropZone">
           <input type="file" id="vFile" accept="video/*" class="hidden" />
-          <div id="dropTxt"><strong>Klikni alebo sem potiahni video (.mp4, .webm, .mov)</strong><br/><span style="font-size:.78rem;color:var(--mut)">Súbor sa uloží do IndexedDB; videá do 1,5 MB sa automaticky prenesú všetkým cez MQTT.</span></div>
+          <div id="dropTxt"><strong>Klikni alebo sem potiahni video (.mp4, .webm, .mov)</strong><br/><span style="font-size:.78rem;color:var(--mut)">Automaticky sa nahrá do verejného File Cloudu (do 100 MB) + IndexedDB.</span></div>
         </div>
       </div>
       <div class="fg"><label>Názov videa *</label><input id="vTitle" class="fc" required /></div>
@@ -281,7 +283,10 @@ button,input,select,textarea{font:inherit;color:inherit}
           <tr><th>ID Connect popis</th><td><textarea id="idcDesc" class="fc" rows="2" placeholder="Popis chráneného obsahu..."></textarea></td></tr>
         </tbody></table>
       </div>
-      <div id="upProg" class="hidden" style="font-size:.82rem;color:var(--acc);margin-bottom:10px"></div>
+      <div id="upProgBox" class="hidden" style="margin-bottom:12px">
+        <div id="upProgTxt" style="font-size:.82rem;color:var(--acc)"></div>
+        <div class="pbar-up"><div id="upProgBar"></div></div>
+      </div>
       <div class="row" style="justify-content:flex-end">
         <button type="button" class="btn" id="canUpBtn">Zrušiť</button>
         <button type="submit" class="btn btn-acc" id="pubVidBtn">Zverejniť video</button>
@@ -307,7 +312,6 @@ button,input,select,textarea{font:inherit;color:inherit}
   const BROKER = 'wss://broker.connectmq.com:8084/mqtt';
   const T_VID = 'bannatube/exstra/videos', T_EVT = 'bannatube/exstra/events', T_CHK = 'bannatube/exstra/chunks';
   const SYS_SUBS = [`${T_VID}/+`, `${T_EVT}/+`, `${T_CHK}/+`];
-  const CHUNK_BYTES = 28000, MAX_MQTT_VIDEO = 1500000;
   const cid = 'bannatube-' + Math.random().toString(16).slice(2, 10);
 
   let client = null, status = 'Disconnected', view = 'home', cat = 'Všetko', q = '', activeId = null, pickedFile = null;
@@ -320,7 +324,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  const toast = m => { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2800); };
+  const toast = m => { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3200); };
   const fmt = s => !isFinite(s) ? '0:00' : `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
   const ago = ts => { const d = Math.max(1, Math.floor((Date.now()-ts)/1000)); return d<60?'pred chvíľou':d<3600?`pred ${Math.floor(d/60)} min`:`pred ${Math.floor(d/3600)} h`; };
   const saveU = () => localStorage.setItem('bte_user', JSON.stringify(u));
@@ -334,6 +338,43 @@ button,input,select,textarea{font:inherit;color:inherit}
   const putBlob = async (id, b) => { const db = await openDB(); return new Promise(r => { const tx = db.transaction('files','readwrite'); tx.objectStore('files').put(b, id); tx.oncomplete = r; }); };
   const getBlob = async id => { const db = await openDB(); return new Promise(r => { const q = db.transaction('files','readonly').objectStore('files').get(id); q.onsuccess = () => r(q.result||null); q.onerror = () => r(null); }); };
   const delBlob = async id => { const db = await openDB(); const tx = db.transaction('files','readwrite'); tx.objectStore('files').delete(id); };
+
+  // Verejný anonymný File Cloud upload cez XHR s ukazovateľom priebehu
+  function xhrUpload(url, field, file, onProg) {
+    return new Promise((res, rej) => {
+      const xhr = new XMLHttpRequest(), fd = new FormData();
+      fd.append(field, file, file.name);
+      xhr.open('POST', url, true);
+      xhr.upload.onprogress = e => { if (e.lengthComputable) onProg(Math.round(e.loaded / e.total * 100)); };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { res(JSON.parse(xhr.responseText)); } catch { rej(new Error('Neplatná odpoveď cloudu')); }
+        } else rej(new Error('HTTP ' + xhr.status));
+      };
+      xhr.onerror = () => rej(new Error('Sieť/CORS blokované'));
+      xhr.send(fd);
+    });
+  }
+
+  async function uploadToPublicCloud(file, onProg) {
+    // 1. Primárny verejný File Cloud: tmpfiles.org (do 100 MB, priamy stream /dl/)
+    try {
+      const j = await xhrUpload('https://tmpfiles.org/api/v1/upload', 'file', file, p => onProg(p, 'Nahrávam do File Cloudu (tmpfiles.org)'));
+      let u = j?.data?.url;
+      if (u) {
+        u = u.replace(/^http:/i, 'https:');
+        if (!u.includes('tmpfiles.org/dl/')) u = u.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
+        return { cloudUrl: u, cloudName: 'File Cloud' };
+      }
+    } catch {}
+    // 2. Záložný verejný File Cloud: uguu.se (do 128 MB)
+    try {
+      const j = await xhrUpload('https://uguu.se/upload', 'files[]', file, p => onProg(p, 'Nahrávam do záložného File Cloudu (uguu.se)'));
+      const u = j?.files?.[0]?.url;
+      if (u) return { cloudUrl: u, cloudName: 'File Cloud' };
+    } catch {}
+    return { cloudUrl: '', cloudName: '' };
+  }
 
   function setStatus(s, d='') {
     status = s; $('hdrDot').className = 'dot ' + s;
@@ -358,20 +399,14 @@ button,input,select,textarea{font:inherit;color:inherit}
   async function handleChunkMsg(txt) {
     try {
       const c = JSON.parse(txt);
-      if (!c?.vid || typeof c.i !== 'number' || !c.n || !c.d) return;
-      if (await getBlob(c.vid)) return;
-      let entry = chunkBuf.get(c.vid);
-      if (!entry) { entry = { n: c.n, mime: c.m || 'video/mp4', parts: new Array(c.n), got: 0 }; chunkBuf.set(c.vid, entry); }
-      if (!entry.parts[c.i]) { entry.parts[c.i] = c.d; entry.got++; }
-      if (entry.got === entry.n) {
-        const bytesArr = entry.parts.map(b64 => {
-          const bin = atob(b64), arr = new Uint8Array(bin.length);
-          for (let j=0; j<bin.length; j++) arr[j] = bin.charCodeAt(j);
-          return arr;
-        });
-        const blob = new Blob(bytesArr, { type: entry.mime });
-        await putBlob(c.vid, blob);
-        chunkBuf.delete(c.vid);
+      if (!c?.vid || typeof c.i !== 'number' || !c.n || !c.d || await getBlob(c.vid)) return;
+      let e = chunkBuf.get(c.vid);
+      if (!e) { e = { n: c.n, mime: c.m || 'video/mp4', parts: new Array(c.n), got: 0 }; chunkBuf.set(c.vid, e); }
+      if (!e.parts[c.i]) { e.parts[c.i] = c.d; e.got++; }
+      if (e.got === e.n) {
+        const bytes = e.parts.map(b64 => { const bin = atob(b64), a = new Uint8Array(bin.length); for (let j=0; j<bin.length; j++) a[j] = bin.charCodeAt(j); return a; });
+        const blob = new Blob(bytes, { type: e.mime });
+        await putBlob(c.vid, blob); chunkBuf.delete(c.vid);
         if (activeId === c.vid && !vEl.src) {
           const bu = URL.createObjectURL(blob); blobs.set(c.vid, bu);
           $('pMsg').classList.remove('show'); vEl.src = bu; vEl.play().catch(()=>{});
@@ -460,7 +495,7 @@ button,input,select,textarea{font:inherit;color:inherit}
         <div class="thumb">
           ${v.thumb ? `<img src="${esc(v.thumb)}" alt="" loading="lazy"/>` : `<div class="tph">▶ Video</div>`}
           ${v.hasCopyright ? `<span class="bdg bdg-cr">© ID Connect</span>` : ''}
-          <span class="bdg bdg-src">${v.sharedMqtt?'MQTT Cloud':'Lokálne DB'}</span>
+          <span class="bdg bdg-src">${v.cloudUrl?'File Cloud':v.sharedMqtt?'MQTT Cloud':'Lokálne DB'}</span>
           <span class="bdg bdg-dur">${fmt(v.dur||0)}</span>
         </div>
         <div class="row" style="align-items:flex-start">
@@ -482,13 +517,22 @@ button,input,select,textarea{font:inherit;color:inherit}
     $('pMsg').classList.remove('show'); vEl.pause(); vEl.removeAttribute('src');
     let bu = blobs.get(id);
     if (!bu) { const b = await getBlob(id); if (b) { bu = URL.createObjectURL(b); blobs.set(id, bu); } }
-    if (bu) vEl.src = bu;
-    else {
+
+    if (bu) {
+      vEl.src = bu;
+    } else if (v.cloudUrl) {
+      vEl.src = v.cloudUrl;
+      vEl.onerror = () => {
+        $('pMsgTxt').textContent = 'Súbor v dočasnom anonymnom File Cloude už expiroval alebo je nedostupný.';
+        $('pMsg').classList.add('show');
+      };
+    } else {
       $('pMsgTxt').textContent = v.sharedMqtt
-        ? 'Video sa sťahuje z verejného MQTT brokera, počkaj chvíľu...'
-        : 'Video presahuje 1,5 MB, takže je uložené v lokálnom zariadení autora (verejný MQTT broker má limit 64 KB/správa).';
+        ? 'Video sa sťahuje z MQTT cloudu, počkaj chvíľu...'
+        : 'Video sa nepodarilo nahrať do verejného File Cloudu a je len v lokálnom zariadení autora.';
       $('pMsg').classList.add('show');
     }
+
     renderWatchMeta(v); renderCmts(id);
     $('upNext').innerHTML = [...videos.values()].filter(x=>x.id!==id).slice(0,10).map(x=>`
       <div class="upitem" data-id="${esc(x.id)}">
@@ -496,7 +540,7 @@ button,input,select,textarea{font:inherit;color:inherit}
         <div><div class="ctitle" style="font-size:.86rem">${esc(x.title)}</div><div class="csub">${esc(x.channel)}</div></div>
       </div>`).join('');
     $('upNext').querySelectorAll('.upitem').forEach(el => el.onclick = () => openWatch(el.dataset.id));
-    if (bu) vEl.play().catch(()=>{});
+    if (bu || v.cloudUrl) vEl.play().catch(()=>{});
   }
 
   function renderWatchMeta(v) {
@@ -596,38 +640,45 @@ button,input,select,textarea{font:inherit;color:inherit}
   $('upForm').onsubmit = async e => {
     e.preventDefault();
     if (!pickedFile) return toast('Najprv vyber video súbor zo zariadenia');
-    $('pubVidBtn').disabled = true; $('upProg').classList.remove('hidden'); $('upProg').textContent = 'Spracovávam video...';
+    $('pubVidBtn').disabled = true; $('upProgBox').classList.remove('hidden');
+    const setProg = (pct, msg) => { $('upProgBar').style.width = pct+'%'; $('upProgTxt').textContent = `${msg} (${pct}%)`; };
+    setProg(5, 'Generujem náhľad a ukladám do IndexedDB');
 
     const id = 'v-' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
     const m = await makeThumb(pickedFile);
     await putBlob(id, pickedFile);
 
-    const sharedMqtt = pickedFile.size <= MAX_MQTT_VIDEO && !!client?.connected;
-    const hc = $('crCheck').checked;
-    u.name = $('vChan').value.trim() || u.name; saveU(); $('profBtn').textContent = u.name[0].toUpperCase();
+    // 1) Upload do verejného File Cloudu (tmpfiles.org / uguu.se)
+    const { cloudUrl } = await uploadToPublicCloud(pickedFile, setProg);
+    let sharedMqtt = false;
 
-    const obj = {
-      id, title:$('vTitle').value.trim(), desc:$('vDesc').value.trim(), channel:u.name, cat:$('vCat').value,
-      thumb:m.th, dur:m.d, sharedMqtt, hasCopyright:hc, cid, views:0, likes:0, dislikes:0, ts:Date.now(),
-      idc: hc ? { code:$('idcCode').value.trim(), owner:$('idcOwner').value.trim(), lic:$('idcLic').value, reg:$('idcReg').value.trim(), desc:$('idcDesc').value.trim() } : null
-    };
-    let s = JSON.stringify(obj);
-    if (new Blob([s]).size > 58000) { obj.thumb = ''; s = JSON.stringify(obj); }
-
-    if (sharedMqtt) {
-      const total = Math.ceil(pickedFile.size / CHUNK_BYTES);
+    // 2) Ak File Cloud neprešiel a súbor má <= 1,5 MB, záloha cez MQTT balíčky
+    if (!cloudUrl && pickedFile.size <= 1500000 && client?.connected) {
+      sharedMqtt = true;
+      const CHUNK = 28000, total = Math.ceil(pickedFile.size / CHUNK);
       for (let i=0; i<total; i++) {
-        $('upProg').textContent = `Odosielam na MQTT cloud (${i+1}/${total})...`;
-        const b64 = await sliceToB64(pickedFile.slice(i*CHUNK_BYTES, (i+1)*CHUNK_BYTES));
+        setProg(Math.round((i+1)/total*100), 'Nahrávam cez záložný MQTT Cloud');
+        const b64 = await sliceToB64(pickedFile.slice(i*CHUNK, (i+1)*CHUNK));
         pub(`${T_CHK}/${id}_${i}`, JSON.stringify({vid:id, i, n:total, m:pickedFile.type, d:b64}), {qos:1, retain:true});
         await new Promise(r => setTimeout(r, 170));
       }
     }
 
+    const hc = $('crCheck').checked;
+    u.name = $('vChan').value.trim() || u.name; saveU(); $('profBtn').textContent = u.name[0].toUpperCase();
+    const obj = {
+      id, title:$('vTitle').value.trim(), desc:$('vDesc').value.trim(), channel:u.name, cat:$('vCat').value,
+      cloudUrl, sharedMqtt, thumb:m.th, dur:m.d, hasCopyright:hc, cid, views:0, likes:0, dislikes:0, ts:Date.now(),
+      idc: hc ? { code:$('idcCode').value.trim(), owner:$('idcOwner').value.trim(), lic:$('idcLic').value, reg:$('idcReg').value.trim(), desc:$('idcDesc').value.trim() } : null
+    };
+    let s = JSON.stringify(obj);
+    if (new Blob([s]).size > 58000) { obj.thumb = ''; s = JSON.stringify(obj); }
+
     videos.set(id, obj); saveVids(); pub(`${T_VID}/${id}`, s, {qos:1, retain:true});
     $('upForm').reset(); pickedFile = null; $('dropTxt').innerHTML = '<strong>Klikni alebo sem potiahni video (.mp4, .webm, .mov)</strong>';
-    $('upIdcBox').classList.add('hidden'); $('upProg').classList.add('hidden'); $('pubVidBtn').disabled = false;
-    $('upModal').classList.remove('open'); switchView('home'); toast('Video zverejnené!');
+    $('upIdcBox').classList.add('hidden'); $('upProgBox').classList.add('hidden'); $('pubVidBtn').disabled = false;
+    $('upModal').classList.remove('open'); switchView('home');
+    toast(cloudUrl ? 'Video nahrané do verejného File Cloudu!' : 'Uložené do IndexedDB' + (sharedMqtt ? ' + MQTT' : ''));
   };
 
   $('subForm').onsubmit = e => {
